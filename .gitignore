@@ -78,3 +78,9 @@ desktop.ini
 # Deployment
 .vercel/
 .netlify/
+
+# Cloudflare Wrangler
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example

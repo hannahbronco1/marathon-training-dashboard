@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Marathon Log</title>
+    <meta name="description" content="Log each run and follow your marathon training: timeline, weekly summaries and charts." />
+    <meta name="theme-color" content="#f9f9f7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Marathon Log" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="css/styles.css" />
+    <script type="module" src="js/app.js"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>Marathon Log</h1>
+      <button id="unit-toggle" class="chip" type="button" aria-label="Switch distance units">
+        <span data-unit-label>km</span>
+      </button>
+    </header>
+
+    <div id="banner" class="banner" role="status" hidden></div>
+
+    <main id="main">
+      <p id="loading" class="loading">Loading your runs…</p>
+
+      <!-- Dashboard -->
+      <section id="view-dashboard" class="view" aria-label="Dashboard" hidden>
+        <div id="dashboard-empty" class="empty card" hidden>
+          <h2>No runs yet</h2>
+          <p>Log your first run to start your training timeline.</p>
+          <button type="button" class="btn primary" data-open-log>Log a run</button>
+        </div>
+
+        <div id="dashboard-content">
+          <section class="card hero" aria-labelledby="hero-title">
+            <p class="eyebrow" id="hero-title">This week · <span id="week-range"></span></p>
+            <p class="hero-value" id="hero-distance"></p>
+            <p class="delta" id="hero-delta"></p>
+            <dl class="tiles">
+              <div><dt>Runs</dt><dd id="tile-runs"></dd></div>
+              <div><dt>Time</dt><dd id="tile-time"></dd></div>
+              <div><dt>Avg pace</dt><dd id="tile-pace"></dd></div>
+              <div><dt>Longest</dt><dd id="tile-longest"></dd></div>
+            </dl>
+          </section>
+
+          <section id="coach-card" class="card coach" aria-labelledby="coach-title" hidden>
+            <h2 id="coach-title">Coach</h2>
+            <p class="sub">AI feedback on your last few weeks of training.</p>
+            <form id="coach-form" class="coach-form">
+              <label class="visually-hidden" for="coach-question">Question for the coach (optional)</label>
+              <input id="coach-question" name="question" maxlength="500" placeholder="Ask something (optional)" />
+              <button type="submit" class="btn primary">Get feedback</button>
+            </form>
+            <div id="coach-reply" class="coach-reply" aria-live="polite" hidden></div>
+          </section>
+
+          <div class="filter-row" role="group" aria-label="Chart range">
+            <button type="button" class="chip" data-range="8">8 wk</button>
+            <button type="button" class="chip" data-range="12">12 wk</button>
+            <button type="button" class="chip" data-range="26">26 wk</button>
+            <button type="button" class="chip" data-range="52">1 yr</button>
+          </div>
+
+          <figure class="card chart-card" id="chart-weekly">
+            <figcaption>
+              <h2>Weekly distance</h2>
+              <p class="sub" data-chart-sub></p>
+            </figcaption>
+            <div class="chart-plot"></div>
+            <details class="chart-table">
+              <summary>Show as table</summary>
+              <div class="table-wrap"></div>
+            </details>
+          </figure>
+
+          <figure class="card chart-card" id="chart-long">
+            <figcaption>
+              <h2>Long run</h2>
+              <p class="sub" data-chart-sub></p>
+            </figcaption>
+            <div class="chart-plot"></div>
+            <details class="chart-table">
+              <summary>Show as table</summary>
+              <div class="table-wrap"></div>
+            </details>
+          </figure>
+
+          <figure class="card chart-card" id="chart-pace">
+            <figcaption>
+              <h2>Pace</h2>
+              <p class="sub" data-chart-sub></p>
+            </figcaption>
+            <div class="chart-plot"></div>
+            <details class="chart-table">
+              <summary>Show as table</summary>
+              <div class="table-wrap"></div>
+            </details>
+          </figure>
+
+          <p id="storage-note" class="storage-note"></p>
+        </div>
+      </section>
+
+      <!-- Timeline -->
+      <section id="view-timeline" class="view" aria-labelledby="timeline-title" hidden>
+        <h2 class="view-title" id="timeline-title">Timeline</h2>
+        <p id="timeline-empty" class="empty-text" hidden>Runs you log will show up here, newest first.</p>
+        <ol id="timeline" class="timeline"></ol>
+      </section>
+
+      <!-- Weekly summaries -->
+      <section id="view-weekly" class="view" aria-labelledby="weekly-title" hidden>
+        <h2 class="view-title" id="weekly-title">Weekly summaries</h2>
+        <p id="weekly-empty" class="empty-text" hidden>Each training week gets a summary once you log a run.</p>
+        <ol id="weeks" class="weeks"></ol>
+      </section>
+    </main>
+
+    <nav class="tabbar" aria-label="Sections">
+      <a href="#dashboard" class="tab" data-view="dashboard">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>
+        <span>Dashboard</span>
+      </a>
+      <a href="#timeline" class="tab" data-view="timeline">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v18M6 7h12M6 12h9M6 17h11" /></svg>
+        <span>Timeline</span>
+      </a>
+      <button type="button" class="tab tab-log" data-open-log>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        <span>Log run</span>
+      </button>
+      <a href="#weekly" class="tab" data-view="weekly">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v16H3zM3 10h18M8 3v4M16 3v4" /></svg>
+        <span>Weekly</span>
+      </a>
+    </nav>
+
+    <!-- Log / edit run -->
+    <dialog id="run-dialog" class="sheet" aria-labelledby="run-dialog-title">
+      <form id="run-form" novalidate>
+        <header class="sheet-header">
+          <h2 id="run-dialog-title">Log a run</h2>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
+
+        <div class="field">
+          <label for="run-date">Date</label>
+          <input id="run-date" name="run_date" type="date" required />
+          <span class="field-error" data-error-for="run_date"></span>
+        </div>
+
+        <div class="field">
+          <label for="run-distance">Distance (<span data-unit-label>km</span>)</label>
+          <input id="run-distance" name="distance" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.0" required />
+          <span class="field-error" data-error-for="distance_km"></span>
+        </div>
+
+        <fieldset class="field">
+          <legend>Time</legend>
+          <div class="duration">
+            <label><input name="hours" type="number" inputmode="numeric" min="0" max="48" placeholder="0" aria-label="Hours" /><span>h</span></label>
+            <label><input name="minutes" type="number" inputmode="numeric" min="0" max="59" placeholder="0" aria-label="Minutes" /><span>m</span></label>
+            <label><input name="seconds" type="number" inputmode="numeric" min="0" max="59" placeholder="0" aria-label="Seconds" /><span>s</span></label>
+          </div>
+          <span class="field-error" data-error-for="duration_seconds"></span>
+          <p class="pace-preview" id="pace-preview" aria-live="polite"></p>
+        </fieldset>
+
+        <fieldset class="field">
+          <legend>Type</legend>
+          <div class="chips" id="type-chips"></div>
+        </fieldset>
+
+        <div class="field">
+          <label for="run-effort">Effort</label>
+          <select id="run-effort" name="effort"></select>
+          <span class="field-error" data-error-for="effort"></span>
+        </div>
+
+        <div class="field">
+          <label for="run-notes">Notes</label>
+          <textarea id="run-notes" name="notes" rows="3" maxlength="2000" placeholder="How did it feel? Route, weather, shoes…"></textarea>
+          <span class="field-error" data-error-for="notes"></span>
+        </div>
+
+        <p class="field-error" data-error-for="form" role="alert"></p>
+        <footer class="sheet-footer">
+          <button type="button" id="delete-run" class="btn danger" hidden>Delete</button>
+          <button type="submit" class="btn primary">Save run</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <!-- Passcode -->
+    <dialog id="passcode-dialog" class="sheet small" aria-labelledby="passcode-title">
+      <form id="passcode-form">
+        <header class="sheet-header">
+          <h2 id="passcode-title">Enter passcode</h2>
+        </header>
+        <p class="sub" id="passcode-message">This dashboard is private. Enter the passcode you set as APP_PASSCODE.</p>
+        <div class="field">
+          <label for="passcode-input">Passcode</label>
+          <input id="passcode-input" name="passcode" type="password" autocomplete="current-password" required />
+        </div>
+        <footer class="sheet-footer">
+          <button type="submit" class="btn primary">Unlock</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  </body>
+</html>

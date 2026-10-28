@@ -1,0 +1,10 @@
+{
+  "name": "Marathon Log",
+  "short_name": "Marathon",
+  "description": "Log each run and follow your marathon training.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9f9f7",
+  "theme_color": "#256abf",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
