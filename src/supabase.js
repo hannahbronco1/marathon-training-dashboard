@@ -38,13 +38,19 @@ export function isValidId(id) {
   return UUID.test(id);
 }
 
+// Newer Supabase secret keys (sb_secret_...) aren't JWTs and go in the
+// apikey header only. Legacy service_role keys (eyJ...) also need to be sent
+// as a Bearer token.
+function authHeaders(key) {
+  return key.startsWith('sb_') ? { apikey: key } : { apikey: key, Authorization: `Bearer ${key}` };
+}
+
 async function rest(env, path, init = {}) {
-  const key = env.SUPABASE_SERVICE_ROLE_KEY;
-  const res = await fetch(`${env.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/${path}`, {
+  const key = env.SUPABASE_SERVICE_ROLE_KEY.trim();
+  const res = await fetch(`${env.SUPABASE_URL.trim().replace(/\/+$/, '')}/rest/v1/${path}`, {
     ...init,
     headers: {
-      apikey: key,
-      Authorization: `Bearer ${key}`,
+      ...authHeaders(key),
       'Content-Type': 'application/json',
       Prefer: 'return=representation',
       ...init.headers,

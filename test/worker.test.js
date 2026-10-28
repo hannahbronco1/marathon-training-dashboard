@@ -90,6 +90,16 @@ test('lists runs from Supabase with the service key', async () => {
   assert.deepEqual((await res.json()).runs, [{ id: ID, ...run }]);
   assert.match(calls[0].url, /^https:\/\/example\.supabase\.co\/rest\/v1\/runs\?select=/);
   assert.equal(calls[0].init.headers.apikey, 'service-key');
+  assert.equal(calls[0].init.headers.Authorization, 'Bearer service-key');
+});
+
+test('new-style secret keys go in the apikey header only', async () => {
+  respond = () => Response.json([]);
+  const env = { ...fullEnv, SUPABASE_SERVICE_ROLE_KEY: ' sb_secret_abc123 ', SUPABASE_URL: `${SUPABASE_URL}/ ` };
+  assert.equal((await call('/api/runs', { env })).status, 200);
+  assert.equal(calls[0].init.headers.apikey, 'sb_secret_abc123');
+  assert.equal(calls[0].init.headers.Authorization, undefined);
+  assert.match(calls[0].url, /^https:\/\/example\.supabase\.co\/rest\/v1\/runs\?/);
 });
 
 test('creates a validated run', async () => {
