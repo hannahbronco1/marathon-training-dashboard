@@ -1,13 +1,8 @@
 # Copy to .dev.vars for local development (`npm run dev`). Never commit .dev.vars.
-# Leave everything blank to keep runs in the browser only.
 
-# Required as soon as Supabase or the coach is enabled. Anyone with this can
-# read and change your runs.
+# A passcode you make up. Anyone with it can read and change your runs.
 APP_PASSCODE=
 
 # Supabase → Project Settings → API. The service role key stays on the server.
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
-
-# https://build.nvidia.com → any model → "Get API Key"
-NVIDIA_API_KEY=

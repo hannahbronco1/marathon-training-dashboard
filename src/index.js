@@ -3,7 +3,7 @@
 
 import { validateRun } from '../public/js/run-schema.js';
 import {
-  createRuns,
+  createRun,
   deleteRun,
   isSupabaseConfigured,
   isValidId,
@@ -11,12 +11,8 @@ import {
   updateRun,
   UpstreamError,
 } from './supabase.js';
-import { getCoachReply, isCoachConfigured } from './coach.js';
 
-const MAX_BODY_BYTES = 256 * 1024;
-const MAX_IMPORT_RUNS = 1000;
-const MAX_COACH_RUNS = 60;
-const MAX_QUESTION_LENGTH = 500;
+const MAX_BODY_BYTES = 64 * 1024;
 
 class HttpError extends Error {
   constructor(status, message, details) {
@@ -61,12 +57,11 @@ async function passcodeMatches(given, expected) {
   return diff === 0;
 }
 
-// Anything that reads your data or spends API credit needs the passcode.
-// Refuse outright if a service is configured but no passcode is set, so a
-// deploy never ends up with an open, writable database.
+// Reading or changing runs needs the passcode. Refuse outright if no
+// passcode is set, so a deploy never ends up with an open database.
 async function requirePasscode(request, env) {
   if (!env.APP_PASSCODE) {
-    throw new HttpError(503, 'Set the APP_PASSCODE secret before using Supabase or the coach.');
+    throw new HttpError(503, 'Set the APP_PASSCODE secret before using the dashboard.');
   }
   const header = request.headers.get('Authorization') ?? '';
   const given = header.startsWith('Bearer ') ? header.slice(7) : '';
@@ -75,48 +70,29 @@ async function requirePasscode(request, env) {
   }
 }
 
-function requireSupabase(env) {
-  if (!isSupabaseConfigured(env)) throw new HttpError(404, 'Supabase is not configured.');
-}
-
 async function handleApi(request, env, url) {
   const { pathname } = url;
   const method = request.method;
 
   if (pathname === '/api/config' && method === 'GET') {
-    const storage = isSupabaseConfigured(env) ? 'supabase' : 'local';
-    const coach = isCoachConfigured(env);
-    return json({ storage, coach, passcode: storage === 'supabase' || coach });
+    return json({ configured: isSupabaseConfigured(env) });
+  }
+
+  if (pathname === '/api/runs' || pathname.startsWith('/api/runs/')) {
+    if (!isSupabaseConfigured(env)) throw new HttpError(503, 'Supabase is not set up yet.');
+    await requirePasscode(request, env);
   }
 
   if (pathname === '/api/runs') {
-    requireSupabase(env);
-    await requirePasscode(request, env);
     if (method === 'GET') return json({ runs: await listRuns(env) });
     if (method === 'POST') {
-      const run = validateOrThrow(await readJson(request));
-      const [created] = await createRuns(env, [run]);
-      return json({ run: created }, 201);
+      const run = await createRun(env, validateOrThrow(await readJson(request)));
+      return json({ run }, 201);
     }
-  }
-
-  // Bulk upload of runs saved in the browser before Supabase was set up.
-  if (pathname === '/api/runs/import' && method === 'POST') {
-    requireSupabase(env);
-    await requirePasscode(request, env);
-    const body = await readJson(request);
-    if (!Array.isArray(body.runs) || body.runs.length > MAX_IMPORT_RUNS) {
-      throw new HttpError(400, `Send up to ${MAX_IMPORT_RUNS} runs as { "runs": [...] }.`);
-    }
-    const runs = body.runs.map(validateOrThrow);
-    const created = runs.length ? await createRuns(env, runs) : [];
-    return json({ runs: created }, 201);
   }
 
   const runMatch = pathname.match(/^\/api\/runs\/([^/]+)$/);
-  if (runMatch && runMatch[1] !== 'import') {
-    requireSupabase(env);
-    await requirePasscode(request, env);
+  if (runMatch) {
     const id = runMatch[1];
     if (!isValidId(id)) throw new HttpError(404, 'Run not found.');
     if (method === 'PATCH' || method === 'PUT') {
@@ -128,17 +104,6 @@ async function handleApi(request, env, url) {
       if (!(await deleteRun(env, id))) throw new HttpError(404, 'Run not found.');
       return new Response(null, { status: 204 });
     }
-  }
-
-  if (pathname === '/api/coach' && method === 'POST') {
-    if (!isCoachConfigured(env)) throw new HttpError(404, 'The coach is not configured.');
-    await requirePasscode(request, env);
-    const body = await readJson(request);
-    const unit = body.unit === 'mi' ? 'mi' : 'km';
-    const question = typeof body.question === 'string' ? body.question.trim().slice(0, MAX_QUESTION_LENGTH) : '';
-    if (!Array.isArray(body.runs)) throw new HttpError(400, 'Send your recent runs as { "runs": [...] }.');
-    const runs = body.runs.slice(0, MAX_COACH_RUNS).map(validateOrThrow);
-    return json({ reply: await getCoachReply(env, runs, unit, question) });
   }
 
   throw new HttpError(404, 'Not found.');

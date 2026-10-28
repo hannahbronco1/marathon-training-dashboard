@@ -17,28 +17,35 @@
   <body>
     <header class="app-header">
       <h1>Marathon Log</h1>
-      <button id="unit-toggle" class="chip" type="button" aria-label="Switch distance units">
-        <span data-unit-label>km</span>
-      </button>
     </header>
-
-    <div id="banner" class="banner" role="status" hidden></div>
 
     <main id="main">
       <p id="loading" class="loading">Loading your runs…</p>
+
+      <!-- Shown until Supabase is connected -->
+      <section id="setup" class="card setup" aria-labelledby="setup-title" hidden>
+        <h2 id="setup-title">Connect your database</h2>
+        <p>The dashboard saves runs to Supabase, which isn’t connected yet. In Cloudflare, open this Worker → <strong>Settings</strong> → <strong>Variables and Secrets</strong> and add these three secrets:</p>
+        <ul>
+          <li><code>SUPABASE_URL</code></li>
+          <li><code>SUPABASE_SERVICE_ROLE_KEY</code></li>
+          <li><code>APP_PASSCODE</code> (a passcode you make up)</li>
+        </ul>
+        <p>Then reload this page. The README has the full steps.</p>
+      </section>
 
       <!-- Dashboard -->
       <section id="view-dashboard" class="view" aria-label="Dashboard" hidden>
         <div id="dashboard-empty" class="empty card" hidden>
           <h2>No runs yet</h2>
-          <p>Log your first run to start your training timeline.</p>
-          <button type="button" class="btn primary" data-open-log>Log a run</button>
+          <p>Add your first run to start your training timeline.</p>
+          <button type="button" class="btn primary" data-open-log>Add a run</button>
         </div>
 
-        <div id="dashboard-content">
+        <div id="dashboard-content" class="stack">
           <section class="card hero" aria-labelledby="hero-title">
-            <p class="eyebrow" id="hero-title">This week · <span id="week-range"></span></p>
-            <p class="hero-value" id="hero-distance"></p>
+            <p class="eyebrow" id="hero-title"></p>
+            <p class="hero-value" id="hero-miles"></p>
             <p class="delta" id="hero-delta"></p>
             <dl class="tiles">
               <div><dt>Runs</dt><dd id="tile-runs"></dd></div>
@@ -48,28 +55,10 @@
             </dl>
           </section>
 
-          <section id="coach-card" class="card coach" aria-labelledby="coach-title" hidden>
-            <h2 id="coach-title">Coach</h2>
-            <p class="sub">AI feedback on your last few weeks of training.</p>
-            <form id="coach-form" class="coach-form">
-              <label class="visually-hidden" for="coach-question">Question for the coach (optional)</label>
-              <input id="coach-question" name="question" maxlength="500" placeholder="Ask something (optional)" />
-              <button type="submit" class="btn primary">Get feedback</button>
-            </form>
-            <div id="coach-reply" class="coach-reply" aria-live="polite" hidden></div>
-          </section>
-
-          <div class="filter-row" role="group" aria-label="Chart range">
-            <button type="button" class="chip" data-range="8">8 wk</button>
-            <button type="button" class="chip" data-range="12">12 wk</button>
-            <button type="button" class="chip" data-range="26">26 wk</button>
-            <button type="button" class="chip" data-range="52">1 yr</button>
-          </div>
-
           <figure class="card chart-card" id="chart-weekly">
             <figcaption>
-              <h2>Weekly distance</h2>
-              <p class="sub" data-chart-sub></p>
+              <h2>Weekly miles</h2>
+              <p class="sub">Miles per plan week</p>
             </figcaption>
             <div class="chart-plot"></div>
             <details class="chart-table">
@@ -81,7 +70,7 @@
           <figure class="card chart-card" id="chart-long">
             <figcaption>
               <h2>Long run</h2>
-              <p class="sub" data-chart-sub></p>
+              <p class="sub">Longest run each week, miles</p>
             </figcaption>
             <div class="chart-plot"></div>
             <details class="chart-table">
@@ -93,7 +82,7 @@
           <figure class="card chart-card" id="chart-pace">
             <figcaption>
               <h2>Pace</h2>
-              <p class="sub" data-chart-sub></p>
+              <p class="sub">Average pace each week, /mi · lower is faster</p>
             </figcaption>
             <div class="chart-plot"></div>
             <details class="chart-table">
@@ -101,22 +90,59 @@
               <div class="table-wrap"></div>
             </details>
           </figure>
-
-          <p id="storage-note" class="storage-note"></p>
         </div>
       </section>
 
       <!-- Timeline -->
       <section id="view-timeline" class="view" aria-labelledby="timeline-title" hidden>
         <h2 class="view-title" id="timeline-title">Timeline</h2>
-        <p id="timeline-empty" class="empty-text" hidden>Runs you log will show up here, newest first.</p>
+        <p id="timeline-empty" class="empty-text" hidden>Runs you add will show up here, newest first.</p>
         <ol id="timeline" class="timeline"></ol>
+      </section>
+
+      <!-- Run log table -->
+      <section id="view-runs" class="view" aria-labelledby="runs-title" hidden>
+        <h2 class="view-title" id="runs-title">Run log</h2>
+
+        <div class="filters" role="group" aria-label="Filter runs">
+          <div class="filter">
+            <label for="filter-week">Week</label>
+            <select id="filter-week"></select>
+          </div>
+          <div class="filter">
+            <label for="filter-type">Type</label>
+            <select id="filter-type"></select>
+          </div>
+          <div class="filter">
+            <label for="filter-location">Where</label>
+            <select id="filter-location"></select>
+          </div>
+        </div>
+        <div class="filter-meta">
+          <p id="runs-summary" class="sub" aria-live="polite"></p>
+          <button type="button" id="clear-filters" class="link-btn" hidden>Clear filters</button>
+        </div>
+        <div class="filter-meta">
+          <label class="toggle">
+            <input type="checkbox" id="show-journal" />
+            <span>Show conditions, food &amp; notes</span>
+          </label>
+          <span id="scroll-hint" class="sub" hidden>Swipe for more →</span>
+        </div>
+
+        <div class="log-wrap" role="region" aria-labelledby="runs-title" tabindex="0">
+          <table class="log-table" id="log-table">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p id="runs-empty" class="empty-text" hidden></p>
       </section>
 
       <!-- Weekly summaries -->
       <section id="view-weekly" class="view" aria-labelledby="weekly-title" hidden>
         <h2 class="view-title" id="weekly-title">Weekly summaries</h2>
-        <p id="weekly-empty" class="empty-text" hidden>Each training week gets a summary once you log a run.</p>
+        <p id="weekly-empty" class="empty-text" hidden>Each plan week gets a summary once you add a run.</p>
         <ol id="weeks" class="weeks"></ol>
       </section>
     </main>
@@ -132,19 +158,23 @@
       </a>
       <button type="button" class="tab tab-log" data-open-log>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-        <span>Log run</span>
+        <span>Add run</span>
       </button>
+      <a href="#runs" class="tab" data-view="runs">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v14H3zM3 10h18M3 14.5h18M9 10v9" /></svg>
+        <span>Log</span>
+      </a>
       <a href="#weekly" class="tab" data-view="weekly">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v16H3zM3 10h18M8 3v4M16 3v4" /></svg>
         <span>Weekly</span>
       </a>
     </nav>
 
-    <!-- Log / edit run -->
+    <!-- Add / edit run -->
     <dialog id="run-dialog" class="sheet" aria-labelledby="run-dialog-title">
       <form id="run-form" novalidate>
         <header class="sheet-header">
-          <h2 id="run-dialog-title">Log a run</h2>
+          <h2 id="run-dialog-title">Add a run</h2>
           <button type="button" class="icon-btn" data-close aria-label="Close">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
@@ -156,37 +186,90 @@
           <span class="field-error" data-error-for="run_date"></span>
         </div>
 
+        <div class="field-row">
+          <div class="field">
+            <label for="run-week">Week #</label>
+            <input id="run-week" name="plan_week" type="number" inputmode="numeric" min="1" step="1" required />
+            <span class="field-error" data-error-for="plan_week"></span>
+          </div>
+          <div class="field">
+            <label for="run-day">Day #</label>
+            <input id="run-day" name="plan_day" type="number" inputmode="numeric" min="1" step="1" required aria-describedby="week-hint" />
+            <span class="field-error" data-error-for="plan_day"></span>
+          </div>
+        </div>
+        <p class="hint" id="week-hint"></p>
+
         <div class="field">
-          <label for="run-distance">Distance (<span data-unit-label>km</span>)</label>
-          <input id="run-distance" name="distance" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.0" required />
-          <span class="field-error" data-error-for="distance_km"></span>
+          <label for="run-miles">Miles</label>
+          <input id="run-miles" name="miles" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" required aria-describedby="split-hint" />
+          <span class="field-error" data-error-for="miles"></span>
+          <p class="hint" id="split-hint">Split run? Add it as one entry with the combined miles and time.</p>
         </div>
 
         <fieldset class="field">
-          <legend>Time</legend>
+          <legend>Duration (hh:mm:ss)</legend>
           <div class="duration">
-            <label><input name="hours" type="number" inputmode="numeric" min="0" max="48" placeholder="0" aria-label="Hours" /><span>h</span></label>
-            <label><input name="minutes" type="number" inputmode="numeric" min="0" max="59" placeholder="0" aria-label="Minutes" /><span>m</span></label>
-            <label><input name="seconds" type="number" inputmode="numeric" min="0" max="59" placeholder="0" aria-label="Seconds" /><span>s</span></label>
+            <label><input name="hours" type="number" inputmode="numeric" min="0" max="48" step="1" placeholder="0" aria-label="Hours" /><span aria-hidden="true">h</span></label>
+            <label><input name="minutes" type="number" inputmode="numeric" min="0" max="59" step="1" placeholder="00" aria-label="Minutes" /><span aria-hidden="true">m</span></label>
+            <label><input name="seconds" type="number" inputmode="numeric" min="0" max="59" step="1" placeholder="00" aria-label="Seconds" /><span aria-hidden="true">s</span></label>
           </div>
           <span class="field-error" data-error-for="duration_seconds"></span>
           <p class="pace-preview" id="pace-preview" aria-live="polite"></p>
         </fieldset>
 
         <fieldset class="field">
-          <legend>Type</legend>
+          <legend>Run type</legend>
           <div class="chips" id="type-chips"></div>
+          <span class="field-error" data-error-for="run_type"></span>
+        </fieldset>
+
+        <fieldset class="field">
+          <legend>Location</legend>
+          <div class="chips" id="location-chips"></div>
+          <span class="field-error" data-error-for="location"></span>
+        </fieldset>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="run-temp">Temperature (°F)</label>
+            <input id="run-temp" name="temperature_f" type="number" inputmode="decimal" step="0.1" required />
+            <span class="field-error" data-error-for="temperature_f"></span>
+          </div>
+          <div class="field">
+            <label for="run-conditions">Conditions <span class="optional">optional</span></label>
+            <input id="run-conditions" name="conditions" list="condition-options" maxlength="200" placeholder="e.g. sunny" />
+            <datalist id="condition-options">
+              <option value="sunny"></option>
+              <option value="cloudy"></option>
+              <option value="humid"></option>
+              <option value="windy"></option>
+              <option value="rainy"></option>
+              <option value="hot"></option>
+              <option value="cold"></option>
+            </datalist>
+            <span class="field-error" data-error-for="conditions"></span>
+          </div>
+        </div>
+
+        <fieldset class="field">
+          <legend>Food &amp; drink <span class="optional">optional</span></legend>
+          <div class="stack-tight">
+            <label for="run-food-pre">Pre-run</label>
+            <textarea id="run-food-pre" name="food_pre" rows="2" maxlength="1000"></textarea>
+            <span class="field-error" data-error-for="food_pre"></span>
+            <label for="run-food-during">During</label>
+            <textarea id="run-food-during" name="food_during" rows="2" maxlength="1000"></textarea>
+            <span class="field-error" data-error-for="food_during"></span>
+            <label for="run-food-post">Post-run</label>
+            <textarea id="run-food-post" name="food_post" rows="2" maxlength="1000"></textarea>
+            <span class="field-error" data-error-for="food_post"></span>
+          </div>
         </fieldset>
 
         <div class="field">
-          <label for="run-effort">Effort</label>
-          <select id="run-effort" name="effort"></select>
-          <span class="field-error" data-error-for="effort"></span>
-        </div>
-
-        <div class="field">
-          <label for="run-notes">Notes</label>
-          <textarea id="run-notes" name="notes" rows="3" maxlength="2000" placeholder="How did it feel? Route, weather, shoes…"></textarea>
+          <label for="run-notes">Notes <span class="optional">optional</span></label>
+          <textarea id="run-notes" name="notes" rows="3" maxlength="5000"></textarea>
           <span class="field-error" data-error-for="notes"></span>
         </div>
 

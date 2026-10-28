@@ -1,14 +1,10 @@
-// Pure date, unit and summary helpers. No DOM access, so they run under
+// Pure date, plan-week and summary helpers. No DOM access, so they run under
 // `node --test` as well as in the browser.
 
-export const KM_PER_MILE = 1.609344;
-
-export const UNITS = {
-  km: { label: 'km', paceLabel: '/km', perKm: 1 },
-  mi: { label: 'mi', paceLabel: '/mi', perKm: 1 / KM_PER_MILE },
-};
+import { PLAN } from './plan.js';
 
 const pad = (n) => String(n).padStart(2, '0');
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Dates are 'YYYY-MM-DD' strings handled in UTC so a run never shifts a day
 // because of the viewer's time zone.
@@ -31,13 +27,38 @@ export function addDays(iso, days) {
   return toISODate(date);
 }
 
-// Weeks start on Monday.
-export function weekStart(iso) {
-  const date = parseDate(iso);
-  const offset = (date.getUTCDay() + 6) % 7;
-  date.setUTCDate(date.getUTCDate() - offset);
-  return toISODate(date);
+export function daysBetween(fromIso, toIso) {
+  return Math.round((parseDate(toIso) - parseDate(fromIso)) / DAY_MS);
 }
+
+// ---------- Plan weeks ----------
+
+// Monday of the week containing a date.
+export function mondayOf(iso) {
+  const offset = (parseDate(iso).getUTCDay() + 6) % 7;
+  return addDays(iso, -offset);
+}
+
+// Week # of the plan for a date, or null before Week 1. Plan weeks run
+// Monday to Sunday, and Week 1 is the week containing PLAN.startDate.
+export function planWeekFor(iso, start = PLAN.startDate) {
+  const days = daysBetween(mondayOf(start), iso);
+  return days < 0 ? null : Math.floor(days / 7) + 1;
+}
+
+// Monday that begins a plan week.
+export function planWeekStart(week, start = PLAN.startDate) {
+  return addDays(mondayOf(start), (week - 1) * 7);
+}
+
+// The next Day # for a run on `date`: one more than the runs already logged
+// that week on or before that date.
+export function nextPlanDay(runs, week, date, excludeId = null) {
+  const earlier = runs.filter((r) => r.id !== excludeId && r.plan_week === week && r.run_date <= date);
+  return earlier.length + 1;
+}
+
+// ---------- Formatting ----------
 
 const shortDate = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
 const longDate = new Intl.DateTimeFormat(undefined, {
@@ -57,15 +78,18 @@ export const formatShortDate = (iso) => shortDate.format(parseDate(iso));
 export const formatLongDate = (iso) => longDate.format(parseDate(iso));
 export const formatYearDate = (iso) => yearDate.format(parseDate(iso));
 
-export function formatWeekRange(start) {
+export function formatWeekRange(week) {
+  const start = planWeekStart(week);
   return `${formatShortDate(start)} – ${formatShortDate(addDays(start, 6))}`;
 }
 
-// Accepts hours, minutes and seconds (any may be blank). Returns whole seconds.
+// Hours, minutes and seconds from form fields (blank counts as 0). Minutes
+// and seconds must be 0–59. Returns whole seconds, or NaN if invalid.
 export function toSeconds(hours, minutes, seconds) {
   const parts = [hours, minutes, seconds].map((v) => (v === '' || v == null ? 0 : Number(v)));
-  if (parts.some((v) => !Number.isFinite(v) || v < 0)) return NaN;
-  return Math.round(parts[0] * 3600 + parts[1] * 60 + parts[2]);
+  if (parts.some((v) => !Number.isInteger(v) || v < 0)) return NaN;
+  if (parts[1] > 59 || parts[2] > 59) return NaN;
+  return parts[0] * 3600 + parts[1] * 60 + parts[2];
 }
 
 export function splitSeconds(total) {
@@ -76,9 +100,10 @@ export function splitSeconds(total) {
   };
 }
 
+// hh:mm:ss, e.g. 0:45:30 or 2:41:00.
 export function formatDuration(total) {
   const { hours, minutes, seconds } = splitSeconds(Math.round(total));
-  return hours ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`;
+  return `${hours}:${pad(minutes)}:${pad(seconds)}`;
 }
 
 // Hours and minutes only, for weekly totals ("5h 20m").
@@ -89,71 +114,62 @@ export function formatHours(total) {
   return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
 }
 
-export function toUnit(km, unit) {
-  return km * UNITS[unit].perKm;
+export function formatMiles(miles, digits = 2) {
+  return `${Number(miles).toFixed(digits)} mi`;
 }
 
-export function fromUnit(value, unit) {
-  return value / UNITS[unit].perKm;
+// Seconds per mile.
+export function paceSeconds(durationSeconds, miles) {
+  return miles > 0 ? durationSeconds / miles : null;
 }
 
-export function formatDistance(km, unit, digits = 1) {
-  return `${toUnit(km, unit).toFixed(digits)} ${UNITS[unit].label}`;
+export function formatPace(secondsPerMile, withUnit = true) {
+  if (secondsPerMile == null || !Number.isFinite(secondsPerMile)) return '–';
+  const total = Math.round(secondsPerMile);
+  return `${Math.floor(total / 60)}:${pad(total % 60)}${withUnit ? ' /mi' : ''}`;
 }
 
-// Seconds per km or per mile.
-export function paceSeconds(durationSeconds, km, unit) {
-  if (!km) return null;
-  return durationSeconds / toUnit(km, unit);
+export function formatTemperature(f) {
+  return `${Number(f)}°F`;
 }
 
-export function formatPace(secondsPerUnit, unit) {
-  if (secondsPerUnit == null || !Number.isFinite(secondsPerUnit)) return '–';
-  const total = Math.round(secondsPerUnit);
-  return `${Math.floor(total / 60)}:${pad(total % 60)} ${UNITS[unit].paceLabel}`;
-}
+// ---------- Sorting & summaries ----------
 
 export function sortRunsDesc(runs) {
   return [...runs].sort(
-    (a, b) => b.run_date.localeCompare(a.run_date) || (b.created_at ?? '').localeCompare(a.created_at ?? ''),
+    (a, b) =>
+      b.run_date.localeCompare(a.run_date) ||
+      b.plan_day - a.plan_day ||
+      (b.created_at ?? '').localeCompare(a.created_at ?? ''),
   );
 }
 
-function emptyWeek(start) {
-  return { weekStart: start, distanceKm: 0, durationSeconds: 0, runCount: 0, longestKm: 0, runs: [] };
+function emptyWeek(week) {
+  return { week, miles: 0, durationSeconds: 0, runCount: 0, longestMiles: 0, runs: [] };
 }
 
-// One entry per week from `fromWeek` to `toWeek` inclusive, oldest first.
-// Weeks without runs are included so charts and lists show the gaps.
-export function summarizeWeeks(runs, fromWeek, toWeek) {
-  const byWeek = new Map();
-  for (let start = fromWeek; start <= toWeek; start = addDays(start, 7)) {
-    byWeek.set(start, emptyWeek(start));
-  }
+// One entry per plan week from Week 1 to `lastWeek`, using each run's
+// stored Week #. Weeks without runs are included so gaps show.
+export function summarizeWeeks(runs, lastWeek) {
+  const weeks = Array.from({ length: Math.max(lastWeek, 0) }, (_, i) => emptyWeek(i + 1));
   for (const run of runs) {
-    const week = byWeek.get(weekStart(run.run_date));
+    const week = weeks[run.plan_week - 1];
     if (!week) continue;
-    week.distanceKm += Number(run.distance_km);
+    const miles = Number(run.miles);
+    week.miles += miles;
     week.durationSeconds += run.duration_seconds;
     week.runCount += 1;
-    week.longestKm = Math.max(week.longestKm, Number(run.distance_km));
+    week.longestMiles = Math.max(week.longestMiles, miles);
     week.runs.push(run);
   }
-  return [...byWeek.values()];
+  return weeks;
 }
 
-// The most recent `count` weeks ending with the week containing `today`.
-export function recentWeeks(runs, count, today = todayISO()) {
-  const toWeek = weekStart(today);
-  return summarizeWeeks(runs, addDays(toWeek, -7 * (count - 1)), toWeek);
-}
-
-// Every week from the first logged run to the current week.
-export function allWeeks(runs, today = todayISO()) {
-  if (!runs.length) return [];
-  const first = runs.reduce((min, r) => (r.run_date < min ? r.run_date : min), runs[0].run_date);
-  const last = runs.reduce((max, r) => (r.run_date > max ? r.run_date : max), today);
-  return summarizeWeeks(runs, weekStart(first), weekStart(last));
+// The plan week to show as "current": today's week, or a later week if
+// runs were logged ahead, and at least Week 1.
+export function currentPlanWeek(runs, today = todayISO()) {
+  const byDate = planWeekFor(today) ?? 1;
+  return runs.reduce((max, r) => Math.max(max, r.plan_week), byDate);
 }
 
 // Signed fractional change, or null when there's no baseline.

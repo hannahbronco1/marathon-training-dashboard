@@ -1,39 +1,45 @@
 # Marathon Log
 
-A phone-friendly dashboard for marathon training. Log each run, then follow your progress as a timeline, weekly summaries and charts (weekly distance, long run, average pace).
+A phone-friendly dashboard for training for the ASICS Los Angeles Marathon (March 7, 2027). Log each run, then follow your progress in a sortable run log, a timeline, weekly summaries and charts.
 
-It runs on **Cloudflare Workers** (static files + a small API), stores runs in **Supabase**, and can ask an **NVIDIA-hosted LLM** for coaching feedback. You don't need either service to start: without them, runs are saved in your browser.
+It runs on **Cloudflare Workers** (static files plus a small API) and saves runs in **Supabase**.
+
+## What's in each run
+
+Date, Week # and Day # (filled in from the date; you can change them), miles, duration (hh:mm:ss), pace (calculated), temperature (°F), conditions, inside/outside, run type (easy, long, tempo, race, other), pre-run / during / post-run food and drink, and notes. Food and notes are saved exactly as you type them. A split run is one entry with the combined miles and time.
+
+Plan weeks run Monday to Sunday. Week 1 is Oct 19–25, 2026, and Week 20 (Mar 1–7, 2027) ends on race day. To change the plan dates, edit `public/js/plan.js`.
 
 ## How it fits together
 
 ```
-public/            Static site served by Cloudflare (no build step)
-  index.html
-  css/styles.css
-  js/app.js        UI: dashboard, timeline, weekly view, log form
-  js/charts.js     Dependency-free SVG charts
-  js/stats.js      Weekly totals, pace, unit conversion (pure functions)
-  js/store.js      Saves runs via the API, or in localStorage as a fallback
-  js/run-schema.js Run validation, shared by the browser and the Worker
-src/               The Worker (handles /api/*)
-  index.js         Routes and the passcode check
-  supabase.js      Supabase REST calls (service role key, server side only)
-  coach.js         NVIDIA chat completions call
-supabase/migrations/   SQL for the `runs` table
-test/              node --test unit and API tests
+public/              The website (no build step)
+  index.html         Page layout: views, add/edit form, tab bar
+  css/styles.css     Styles, including dark mode
+  js/app.js          Everything you see and tap: form, run log, timeline, weekly, charts
+  js/run-schema.js   The rules for a valid run (used by the browser AND the server)
+  js/stats.js        Plan weeks, pace, totals (pure functions, easy to test)
+  js/plan.js         Plan start date and race date
+  js/charts.js       Small SVG charts
+  js/store.js        Talks to the server's /api routes
+src/                 The Cloudflare Worker (server)
+  index.js           /api routes and the passcode check
+  supabase.js        Reads and writes the Supabase runs table
+supabase/migrations/ SQL that creates the runs table
+test/                Automated tests (npm test)
 ```
 
-The browser asks `/api/config` what's set up:
+Your phone only ever talks to the Worker. The Worker holds the Supabase key and checks your passcode, so the key never reaches the browser.
 
-| Secrets set | Where runs are saved | Coach |
-| --- | --- | --- |
-| none | this browser (localStorage) | hidden |
-| Supabase + `APP_PASSCODE` | Supabase | hidden |
-| Supabase + NVIDIA + `APP_PASSCODE` | Supabase | shown |
+## 1. Create the database table
 
-If you connect Supabase after logging runs locally, the dashboard offers to upload them.
+1. In Supabase, open **SQL Editor** → **New query**.
+2. Paste in everything from [`supabase/migrations/20261029000000_create_runs.sql`](supabase/migrations/20261029000000_create_runs.sql) and click **Run**.
+3. From **Project Settings** → **API**, copy the **Project URL** and the **service_role** key.
 
-## Run it locally
+Row level security is on with no policies, so the public `anon` key can't read or change anything. Never put the service role key in browser code.
+
+## 2. Run it on your computer (optional)
 
 Requires Node 20 or newer.
 
@@ -41,79 +47,72 @@ Requires Node 20 or newer.
 npm install
 ```
 
+Copy `.dev.vars.example` to `.dev.vars` and fill in the three values, then:
+
 ```bash
 npm run dev
 ```
 
-Open http://localhost:8787. To try Supabase or the coach locally, copy `.dev.vars.example` to `.dev.vars` and fill it in.
+Open http://localhost:8787.
 
 ```bash
 npm test
 ```
 
-## Set up Supabase
+## 3. Deploy to Cloudflare
 
-1. Create a project at [supabase.com](https://supabase.com).
-2. In **SQL Editor**, run [`supabase/migrations/20261028000000_create_runs.sql`](supabase/migrations/20261028000000_create_runs.sql). (With the Supabase CLI you can run `supabase db push` instead.)
-3. From **Project Settings → API**, copy the project URL and the `service_role` key.
-
-The table has row level security turned on with no policies, so the public `anon` key can't read or change anything. Only the Worker, using the service role key, can reach it. Never put the service role key in browser code.
-
-## Set up the NVIDIA coach (optional)
-
-1. Sign in at [build.nvidia.com](https://build.nvidia.com), open a model, and choose **Get API Key**.
-2. Set it as `NVIDIA_API_KEY` (below).
-
-The model is set by `NVIDIA_MODEL` in `wrangler.jsonc` (default `meta/llama-3.3-70b-instruct`). Any chat model from the NVIDIA API catalog works. The prompt is in `src/coach.js`.
-
-## Deploy to Cloudflare
+Connect this GitHub repository to a Worker in the Cloudflare dashboard (Workers Builds) so each push deploys automatically. Or deploy from your computer:
 
 ```bash
 npx wrangler login
-```
-
-Set your secrets. Each command prompts for the value:
-
-```bash
-npx wrangler secret put APP_PASSCODE
-```
-
-```bash
-npx wrangler secret put SUPABASE_URL
-```
-
-```bash
-npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
-```
-
-```bash
-npx wrangler secret put NVIDIA_API_KEY
 ```
 
 ```bash
 npm run deploy
 ```
 
-Wrangler prints your `*.workers.dev` URL. On your phone, open it and use **Add to Home Screen** to get an app icon.
+Then, in Cloudflare, open the Worker → **Settings** → **Variables and Secrets** and add these as type **Secret**:
 
-You can also connect this GitHub repository to the Worker in the Cloudflare dashboard (Workers Builds) so each push deploys automatically. Secrets set with `wrangler secret put` stay in place across deploys.
+| Name | Value |
+| --- | --- |
+| `SUPABASE_URL` | Your Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Your Supabase service_role key |
+| `APP_PASSCODE` | A long passcode you make up |
+
+On your phone, open the `*.workers.dev` URL, enter your passcode once, and use **Add to Home Screen** for an app icon.
 
 ## Privacy and the passcode
 
-`APP_PASSCODE` protects your data and your NVIDIA credits. Once Supabase or the coach is configured, the API refuses every request until `APP_PASSCODE` is set, and the browser asks for it once and remembers it on that device. Use a long, unique passcode. For stronger protection, put the site behind [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/applications/configure-apps/self-hosted-public-app/), which is free for personal use.
+`APP_PASSCODE` protects your runs. The API refuses every request until it's set. Your phone asks for it once and remembers it on that device. For stronger protection, put the site behind [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/applications/configure-apps/self-hosted-public-app/), which is free for personal use.
 
 ## API
 
-All routes except `/api/config` need `Authorization: Bearer <APP_PASSCODE>`.
+All `/api/runs` routes need `Authorization: Bearer <APP_PASSCODE>`.
 
 | Method | Path | Body | Returns |
 | --- | --- | --- | --- |
-| GET | `/api/config` | | `{ storage, coach, passcode }` |
+| GET | `/api/config` | | `{ configured }` |
 | GET | `/api/runs` | | `{ runs }` |
 | POST | `/api/runs` | run | `{ run }` |
 | PATCH | `/api/runs/:id` | run | `{ run }` |
 | DELETE | `/api/runs/:id` | | 204 |
-| POST | `/api/runs/import` | `{ runs: [run] }` | `{ runs }` |
-| POST | `/api/coach` | `{ runs, unit, question? }` | `{ reply }` |
 
-A run is `{ run_date: "YYYY-MM-DD", distance_km, duration_seconds, run_type, effort?, notes? }`. `run_type` is one of `easy`, `long`, `tempo`, `intervals`, `recovery`, `race`, and `effort` is 1–10. Distances are stored in kilometres; the km/mi button only changes how they're shown.
+A run is:
+
+```json
+{
+  "run_date": "2026-10-27",
+  "plan_week": 2,
+  "plan_day": 1,
+  "miles": 6.25,
+  "duration_seconds": 3300,
+  "temperature_f": 61.5,
+  "conditions": "sunny",
+  "location": "outside",
+  "run_type": "easy",
+  "food_pre": "toast + coffee",
+  "food_during": null,
+  "food_post": "chocolate milk",
+  "notes": "Felt strong."
+}
+```

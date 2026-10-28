@@ -164,9 +164,35 @@ main {
   gap: 12px;
 }
 
-#dashboard-content {
+.stack {
   display: grid;
   gap: 12px;
+}
+
+.stack-tight {
+  display: grid;
+  gap: 6px;
+}
+
+.setup {
+  display: grid;
+  gap: 10px;
+}
+
+.setup ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.setup code {
+  font-size: 0.875rem;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+body.needs-setup .tabbar {
+  display: none;
 }
 
 .view-title {
@@ -206,32 +232,6 @@ main {
 .empty p {
   color: var(--text-2);
   margin-bottom: 8px;
-}
-
-.banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  max-width: calc(640px - 2 * var(--gutter));
-  margin: 0 var(--gutter) 12px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--series-1-wash);
-  font-size: 0.875rem;
-}
-
-@media (min-width: 672px) {
-  .banner {
-    margin: 0 auto 12px;
-  }
-}
-
-.storage-note {
-  color: var(--text-2);
-  font-size: 0.8125rem;
-  text-align: center;
-  padding: 4px 8px;
 }
 
 /* ---------- Buttons & chips ---------- */
@@ -376,44 +376,7 @@ main {
   }
 }
 
-/* ---------- Coach ---------- */
-
-.coach {
-  display: grid;
-  gap: 10px;
-}
-
-.coach-form {
-  display: flex;
-  gap: 8px;
-}
-
-.coach-form input {
-  flex: 1;
-  min-width: 0;
-  min-height: 44px;
-  padding: 0 14px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-2);
-}
-
-.coach-reply {
-  white-space: pre-wrap;
-  font-size: 0.9375rem;
-  padding: 12px;
-  border-radius: 10px;
-  background: var(--surface-2);
-}
-
 /* ---------- Charts ---------- */
-
-.filter-row {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 4px 0;
-}
 
 .chart-card {
   margin: 0;
@@ -561,6 +524,169 @@ main {
   background: var(--surface);
 }
 
+/* ---------- Run log table ---------- */
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.filter {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.filter label {
+  color: var(--text-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.filter select {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 16px;
+}
+
+.filter-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.link-btn {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.toggle input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.log-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.log-table th,
+.log-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--grid);
+  text-align: left;
+  vertical-align: top;
+}
+
+.log-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.log-table th {
+  padding: 0;
+  color: var(--text-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--surface-2);
+}
+
+.log-table th.journal {
+  padding: 10px;
+}
+
+/* Keep the date visible while scrolling sideways. */
+.log-table th:first-child,
+.log-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  box-shadow: 1px 0 0 var(--grid);
+}
+
+.log-table th:first-child {
+  background: var(--surface-2);
+}
+
+.log-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.log-table td.journal {
+  min-width: 180px;
+  max-width: 280px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.log-table .link-btn {
+  padding: 0;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sort-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.num .sort-btn {
+  justify-content: flex-end;
+}
+
+.sort-icon {
+  width: 0.75em;
+  color: var(--text);
+}
+
+th[aria-sort='ascending'],
+th[aria-sort='descending'] {
+  color: var(--text);
+}
+
 /* ---------- Timeline ---------- */
 
 .timeline {
@@ -652,6 +778,7 @@ main {
 .run-notes {
   color: var(--text-2);
   font-size: 0.875rem;
+  white-space: pre-wrap;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -724,7 +851,7 @@ main {
   bottom: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   max-width: 640px;
   margin: 0 auto;
   padding: 6px 8px calc(env(safe-area-inset-bottom) + 6px);
@@ -914,6 +1041,38 @@ main {
 
 .field-error:empty {
   display: none;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.hint {
+  color: var(--text-2);
+  font-size: 0.8125rem;
+  margin-top: -6px;
+}
+
+.field .hint {
+  margin-top: 0;
+}
+
+.hint:empty {
+  display: none;
+}
+
+.optional {
+  color: var(--text-2);
+  font-weight: 400;
+}
+
+.stack-tight > label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-2);
 }
 
 .pace-preview {

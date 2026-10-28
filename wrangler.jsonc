@@ -9,11 +9,8 @@
   },
   "observability": {
     "enabled": true
-  },
-  // Non-secret settings. Secrets (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
-  // NVIDIA_API_KEY, APP_PASSCODE) go in .dev.vars locally and
-  // `wrangler secret put` in production. See README.md.
-  "vars": {
-    "NVIDIA_MODEL": "meta/llama-3.3-70b-instruct"
   }
+  // Secrets (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, APP_PASSCODE) go in
+  // .dev.vars locally and in Cloudflare's Variables and Secrets in
+  // production. See README.md.
 }

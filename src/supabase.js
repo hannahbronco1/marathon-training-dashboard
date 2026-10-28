@@ -1,7 +1,24 @@
 // Minimal client for Supabase's REST API (PostgREST). Runs server-side in
 // the Worker with the service role key, which never reaches the browser.
 
-const COLUMNS = 'id,run_date,distance_km,duration_seconds,run_type,effort,notes,created_at,updated_at';
+const COLUMNS = [
+  'id',
+  'run_date',
+  'plan_week',
+  'plan_day',
+  'miles',
+  'duration_seconds',
+  'temperature_f',
+  'conditions',
+  'location',
+  'run_type',
+  'food_pre',
+  'food_during',
+  'food_post',
+  'notes',
+  'created_at',
+  'updated_at',
+].join(',');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class UpstreamError extends Error {
@@ -38,11 +55,12 @@ async function rest(env, path, init = {}) {
 }
 
 export function listRuns(env) {
-  return rest(env, `runs?select=${COLUMNS}&order=run_date.desc,created_at.desc&limit=5000`);
+  return rest(env, `runs?select=${COLUMNS}&order=run_date.desc,plan_day.desc&limit=5000`);
 }
 
-export async function createRuns(env, runs) {
-  return rest(env, `runs?select=${COLUMNS}`, { method: 'POST', body: JSON.stringify(runs) });
+export async function createRun(env, run) {
+  const rows = await rest(env, `runs?select=${COLUMNS}`, { method: 'POST', body: JSON.stringify(run) });
+  return rows[0];
 }
 
 // Returns the updated row, or null when no run has that id.

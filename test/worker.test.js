@@ -4,7 +4,16 @@ import worker from '../src/index.js';
 
 const SUPABASE_URL = 'https://example.supabase.co';
 const ID = '6f1c1f4e-8f4a-4d7e-9a57-3a1b2c3d4e5f';
-const run = { run_date: '2026-10-28', distance_km: 10, duration_seconds: 3000, run_type: 'easy' };
+const run = {
+  run_date: '2026-10-28',
+  plan_week: 2,
+  plan_day: 1,
+  miles: 6.2,
+  duration_seconds: 3000,
+  temperature_f: 60,
+  location: 'outside',
+  run_type: 'easy',
+}
 
 const assets = { fetch: async () => new Response('<!doctype html>', { headers: { 'Content-Type': 'text/html' } }) };
 const fullEnv = {
@@ -12,7 +21,6 @@ const fullEnv = {
   APP_PASSCODE: 'letmein',
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY: 'service-key',
-  NVIDIA_API_KEY: 'nvapi-test',
 };
 
 let realFetch;
@@ -50,19 +58,16 @@ test('non-API paths go to static assets', async () => {
   assert.equal(await res.text(), '<!doctype html>');
 });
 
-test('config reports local mode with no secrets', async () => {
-  const res = await call('/api/config', { auth: null, env: { ASSETS: assets } });
-  assert.deepEqual(await res.json(), { storage: 'local', coach: false, passcode: false });
-});
-
-test('config reports configured services', async () => {
-  const res = await call('/api/config', { auth: null });
-  assert.deepEqual(await res.json(), { storage: 'supabase', coach: true, passcode: true });
+test('config reports whether Supabase is set up', async () => {
+  const off = await call('/api/config', { auth: null, env: { ASSETS: assets } });
+  assert.deepEqual(await off.json(), { configured: false });
+  const on = await call('/api/config', { auth: null });
+  assert.deepEqual(await on.json(), { configured: true });
 });
 
 test('runs need Supabase configured', async () => {
   const res = await call('/api/runs', { env: { ASSETS: assets } });
-  assert.equal(res.status, 404);
+  assert.equal(res.status, 503);
 });
 
 test('runs refuse to work without APP_PASSCODE set', async () => {
@@ -88,19 +93,22 @@ test('lists runs from Supabase with the service key', async () => {
 });
 
 test('creates a validated run', async () => {
-  respond = (url, init) => Response.json(JSON.parse(init.body).map((r) => ({ id: ID, ...r })), { status: 201 });
-  const res = await call('/api/runs', { method: 'POST', body: { ...run, id: 'forged', notes: ' hi ' } });
+  respond = (url, init) => Response.json([{ id: ID, ...JSON.parse(init.body) }], { status: 201 });
+  const notes = '  Legs heavy.\nStill fun.  ';
+  const res = await call('/api/runs', { method: 'POST', body: { ...run, id: 'forged', notes } });
   assert.equal(res.status, 201);
   const sent = JSON.parse(calls[0].init.body);
-  assert.equal(sent[0].id, undefined);
-  assert.equal(sent[0].notes, 'hi');
+  assert.equal(sent.id, undefined);
+  assert.equal(sent.notes, notes);
   assert.equal((await res.json()).run.id, ID);
 });
 
 test('rejects an invalid run with field errors', async () => {
-  const res = await call('/api/runs', { method: 'POST', body: { ...run, distance_km: -1 } });
+  const res = await call('/api/runs', { method: 'POST', body: { ...run, miles: 0, plan_day: 1.5 } });
   assert.equal(res.status, 422);
-  assert.ok((await res.json()).fields.distance_km);
+  const { fields } = await res.json();
+  assert.ok(fields.miles);
+  assert.ok(fields.plan_day);
   assert.equal(calls.length, 0);
 });
 
@@ -111,9 +119,9 @@ test('rejects malformed JSON', async () => {
 
 test('updates and deletes by id', async () => {
   respond = (url, init) => Response.json([{ id: ID, ...(init.body ? JSON.parse(init.body) : {}) }]);
-  const updated = await call(`/api/runs/${ID}`, { method: 'PATCH', body: { ...run, distance_km: 12 } });
+  const updated = await call(`/api/runs/${ID}`, { method: 'PATCH', body: { ...run, miles: 12 } });
   assert.equal(updated.status, 200);
-  assert.equal((await updated.json()).run.distance_km, 12);
+  assert.equal((await updated.json()).run.miles, 12);
   assert.match(calls[0].url, new RegExp(`id=eq\\.${ID}`));
   assert.equal(calls[0].init.method, 'PATCH');
 
@@ -129,13 +137,6 @@ test('unknown or malformed ids are 404 without hitting Supabase', async () => {
   assert.equal(calls.length, 1);
 });
 
-test('imports runs in bulk', async () => {
-  respond = (url, init) => Response.json(JSON.parse(init.body).map((r) => ({ id: ID, ...r })));
-  const res = await call('/api/runs/import', { method: 'POST', body: { runs: [run, run] } });
-  assert.equal(res.status, 201);
-  assert.equal((await res.json()).runs.length, 2);
-});
-
 test('Supabase errors become a 502 without leaking details', async () => {
   respond = () => new Response('secret internals', { status: 500 });
   const res = await call('/api/runs');
@@ -143,21 +144,7 @@ test('Supabase errors become a 502 without leaking details', async () => {
   assert.doesNotMatch(await res.text(), /secret internals/);
 });
 
-test('coach calls NVIDIA with the runs and returns the reply', async () => {
-  respond = () => Response.json({ choices: [{ message: { content: ' Nice week! ' } }] });
-  const res = await call('/api/coach', { method: 'POST', body: { runs: [run], unit: 'mi', question: 'Ready for 20?' } });
-  assert.equal(res.status, 200);
-  assert.equal((await res.json()).reply, 'Nice week!');
-  assert.equal(calls[0].url, 'https://integrate.api.nvidia.com/v1/chat/completions');
-  assert.equal(calls[0].init.headers.Authorization, 'Bearer nvapi-test');
-  const body = JSON.parse(calls[0].init.body);
-  assert.equal(body.model, 'meta/llama-3.3-70b-instruct');
-  assert.match(body.messages[1].content, /6\.2 mi/);
-  assert.match(body.messages[1].content, /Ready for 20\?/);
-});
-
-test('coach is off without an NVIDIA key', async () => {
-  const { NVIDIA_API_KEY, ...env } = fullEnv;
-  const res = await call('/api/coach', { method: 'POST', body: { runs: [] }, env });
-  assert.equal(res.status, 404);
+test('removed routes are gone', async () => {
+  assert.equal((await call('/api/coach', { method: 'POST', body: {} })).status, 404);
+  assert.equal((await call('/api/runs/import', { method: 'POST', body: {} })).status, 404);
 });
