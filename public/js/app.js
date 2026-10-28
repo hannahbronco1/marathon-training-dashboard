@@ -1,4 +1,4 @@
-import { ApiError, isConfigured, passcode, runsApi } from './store.js';
+import { ApiError, fetchConfig, passcode, runsApi } from './store.js';
 import { renderChart } from './charts.js';
 import { LOCATIONS, RUN_TYPES, locationLabel, runTypeLabel, validateRun } from './run-schema.js';
 import { PLAN } from './plan.js';
@@ -716,14 +716,31 @@ function wireEvents() {
   });
 }
 
+// Lists each secret the Worker needs and whether it can see it.
+function showSetup(missing) {
+  for (const item of $$('#setup [data-secret]')) {
+    const isMissing = missing.includes(item.dataset.secret);
+    item.classList.toggle('is-missing', isMissing);
+    $('.secret-status', item).textContent = isMissing ? 'Missing' : 'Found';
+  }
+  $('#loading').hidden = true;
+  $('#setup').hidden = false;
+  document.body.classList.add('needs-setup');
+}
+
 async function init() {
   $('#brand').textContent = `${PLAN.shortName} · ${PLAN.raceDate.slice(0, 4)}`;
   buildRunForm();
   wireEvents();
-  if (!(await isConfigured())) {
-    $('#loading').hidden = true;
-    $('#setup').hidden = false;
-    document.body.classList.add('needs-setup');
+  let config;
+  try {
+    config = await fetchConfig();
+  } catch (err) {
+    $('#loading').textContent = `Couldn’t reach the server: ${err.message}`;
+    return;
+  }
+  if (!config.configured) {
+    showSetup(config.missing ?? []);
     return;
   }
   await loadRuns();

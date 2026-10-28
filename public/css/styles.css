@@ -233,8 +233,39 @@ main {
   gap: 10px;
 }
 
-.setup ul {
-  padding-left: 20px;
+.secret-list {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.secret-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.secret-status {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.secret-status::before {
+  content: '✓ ';
+}
+
+.secret-list li.is-missing .secret-status {
+  color: var(--danger);
+}
+
+.secret-list li.is-missing .secret-status::before {
+  content: '✕ ';
 }
 
 .setup code {

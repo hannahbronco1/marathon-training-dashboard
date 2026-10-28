@@ -13,6 +13,7 @@ import {
 } from './supabase.js';
 
 const MAX_BODY_BYTES = 64 * 1024;
+const REQUIRED_SECRETS = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'APP_PASSCODE'];
 
 class HttpError extends Error {
   constructor(status, message, details) {
@@ -74,8 +75,11 @@ async function handleApi(request, env, url) {
   const { pathname } = url;
   const method = request.method;
 
+  // Says which secrets are missing (names only, never values) so the setup
+  // screen can show what's left to add.
   if (pathname === '/api/config' && method === 'GET') {
-    return json({ configured: isSupabaseConfigured(env) });
+    const missing = REQUIRED_SECRETS.filter((name) => !String(env[name] ?? '').trim());
+    return json({ configured: missing.length === 0, missing });
   }
 
   if (pathname === '/api/runs' || pathname.startsWith('/api/runs/')) {

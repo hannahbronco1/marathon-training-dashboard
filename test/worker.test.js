@@ -58,11 +58,18 @@ test('non-API paths go to static assets', async () => {
   assert.equal(await res.text(), '<!doctype html>');
 });
 
-test('config reports whether Supabase is set up', async () => {
+test('config lists missing secrets by name only', async () => {
   const off = await call('/api/config', { auth: null, env: { ASSETS: assets } });
-  assert.deepEqual(await off.json(), { configured: false });
+  assert.deepEqual(await off.json(), {
+    configured: false,
+    missing: ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'APP_PASSCODE'],
+  });
+  const blank = await call('/api/config', { auth: null, env: { ...fullEnv, SUPABASE_SERVICE_ROLE_KEY: '  ' } });
+  assert.deepEqual(await blank.json(), { configured: false, missing: ['SUPABASE_SERVICE_ROLE_KEY'] });
   const on = await call('/api/config', { auth: null });
-  assert.deepEqual(await on.json(), { configured: true });
+  const body = await on.text();
+  assert.deepEqual(JSON.parse(body), { configured: true, missing: [] });
+  assert.doesNotMatch(body, /service-key|letmein/);
 });
 
 test('runs need Supabase configured', async () => {

@@ -46,12 +46,9 @@ async function api(path, { method = 'GET', body } = {}) {
   return data;
 }
 
-export async function isConfigured() {
-  try {
-    return (await api('/api/config')).configured === true;
-  } catch {
-    return false;
-  }
+// { configured, missing: [secret names] }. Throws if the server can't be reached.
+export function fetchConfig() {
+  return api('/api/config');
 }
 
 export const runsApi = {

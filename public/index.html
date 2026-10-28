@@ -31,13 +31,13 @@
       <!-- Shown until Supabase is connected -->
       <section id="setup" class="card setup" aria-labelledby="setup-title" hidden>
         <h2 id="setup-title">Connect your database</h2>
-        <p>The dashboard saves runs to Supabase, which isn’t connected yet. In Cloudflare, open this Worker → <strong>Settings</strong> → <strong>Variables and Secrets</strong> and add these three secrets:</p>
-        <ul>
-          <li><code>SUPABASE_URL</code></li>
-          <li><code>SUPABASE_SERVICE_ROLE_KEY</code></li>
-          <li><code>APP_PASSCODE</code> (a passcode you make up)</li>
+        <p>The dashboard saves runs to Supabase. In Cloudflare, open this Worker → <strong>Settings</strong> → <strong>Variables and Secrets</strong> and add these three as type <strong>Secret</strong>. Here’s what the running site can see right now:</p>
+        <ul class="secret-list">
+          <li data-secret="SUPABASE_URL"><code>SUPABASE_URL</code> <span class="secret-status"></span></li>
+          <li data-secret="SUPABASE_SERVICE_ROLE_KEY"><code>SUPABASE_SERVICE_ROLE_KEY</code> <span class="secret-status"></span></li>
+          <li data-secret="APP_PASSCODE"><code>APP_PASSCODE</code> <span class="secret-status"></span> <span class="sub">a passcode you make up</span></li>
         </ul>
-        <p>Then reload this page. The README has the full steps.</p>
+        <p>Names must match exactly. Then reload this page. The README has the full steps.</p>
       </section>
 
       <!-- Dashboard -->
