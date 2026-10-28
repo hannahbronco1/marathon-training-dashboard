@@ -78,6 +78,28 @@ export const formatShortDate = (iso) => shortDate.format(parseDate(iso));
 export const formatLongDate = (iso) => longDate.format(parseDate(iso));
 export const formatYearDate = (iso) => yearDate.format(parseDate(iso));
 
+// Two-digit week code, e.g. W04.
+export function weekCode(week) {
+  return `W${pad(week)}`;
+}
+
+// Race-bib style date, e.g. SUN 03.07.27.
+export function formatBibDate(iso) {
+  const date = parseDate(iso);
+  const weekday = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][date.getUTCDay()];
+  return `${weekday} ${pad(date.getUTCMonth() + 1)}.${pad(date.getUTCDate())}.${String(date.getUTCFullYear()).slice(2)}`;
+}
+
+// Days until race day (0 on the day, negative after), the plan week today
+// falls in (null before Week 1), and how many weeks the plan has.
+export function raceCountdown(today = todayISO()) {
+  return {
+    days: daysBetween(today, PLAN.raceDate),
+    week: planWeekFor(today),
+    totalWeeks: planWeekFor(PLAN.raceDate),
+  };
+}
+
 export function formatWeekRange(week) {
   const start = planWeekStart(week);
   return `${formatShortDate(start)} – ${formatShortDate(addDays(start, 6))}`;
@@ -118,6 +140,11 @@ export function formatMiles(miles, digits = 2) {
   return `${Number(miles).toFixed(digits)} mi`;
 }
 
+// Miles without trailing zeros: 10.7, 3.25, 6.
+export function shortMiles(miles) {
+  return String(Number(Number(miles).toFixed(2)));
+}
+
 // Seconds per mile.
 export function paceSeconds(durationSeconds, miles) {
   return miles > 0 ? durationSeconds / miles : null;
@@ -126,7 +153,7 @@ export function paceSeconds(durationSeconds, miles) {
 export function formatPace(secondsPerMile, withUnit = true) {
   if (secondsPerMile == null || !Number.isFinite(secondsPerMile)) return '–';
   const total = Math.round(secondsPerMile);
-  return `${Math.floor(total / 60)}:${pad(total % 60)}${withUnit ? ' /mi' : ''}`;
+  return `${Math.floor(total / 60)}:${pad(total % 60)}${withUnit ? '/mi' : ''}`;
 }
 
 export function formatTemperature(f) {

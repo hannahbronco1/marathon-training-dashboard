@@ -5,18 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Marathon Log</title>
     <meta name="description" content="Log each run and follow your marathon training: timeline, weekly summaries and charts." />
-    <meta name="theme-color" content="#f9f9f7" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#0b0b0c" />
+    <meta name="color-scheme" content="dark" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Marathon Log" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&display=swap" />
     <link rel="stylesheet" href="css/styles.css" />
     <script type="module" src="js/app.js"></script>
   </head>
   <body>
     <header class="app-header">
-      <h1>Marathon Log</h1>
+      <h1 class="brand" id="brand">Marathon Log</h1>
+      <button type="button" class="add-btn" data-open-log aria-label="Add a run">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+      </button>
     </header>
 
     <main id="main">
@@ -36,6 +42,18 @@
 
       <!-- Dashboard -->
       <section id="view-dashboard" class="view" aria-label="Dashboard" hidden>
+        <!-- Race bib: countdown to race day -->
+        <section class="bib" aria-labelledby="bib-label" aria-describedby="bib-date bib-week">
+          <span class="pin" aria-hidden="true"></span><span class="pin" aria-hidden="true"></span>
+          <span class="pin" aria-hidden="true"></span><span class="pin" aria-hidden="true"></span>
+          <h2 class="bib-label" id="bib-label"></h2>
+          <p class="bib-number" id="bib-number"></p>
+          <div class="bib-footer">
+            <span id="bib-date"></span>
+            <span id="bib-week"></span>
+          </div>
+        </section>
+
         <div id="dashboard-empty" class="empty card" hidden>
           <h2>No runs yet</h2>
           <p>Add your first run to start your training timeline.</p>
@@ -43,16 +61,17 @@
         </div>
 
         <div id="dashboard-content" class="stack">
-          <section class="card hero" aria-labelledby="hero-title">
-            <p class="eyebrow" id="hero-title"></p>
-            <p class="hero-value" id="hero-miles"></p>
-            <p class="delta" id="hero-delta"></p>
-            <dl class="tiles">
-              <div><dt>Runs</dt><dd id="tile-runs"></dd></div>
-              <div><dt>Time</dt><dd id="tile-time"></dd></div>
-              <div><dt>Avg pace</dt><dd id="tile-pace"></dd></div>
-              <div><dt>Longest</dt><dd id="tile-longest"></dd></div>
+          <section aria-labelledby="hero-title">
+            <div class="section-head">
+              <h2 id="hero-title">This week</h2>
+              <span class="mono-meta" id="hero-range"></span>
+            </div>
+            <dl class="stat-tiles">
+              <div class="stat"><dt>Week mi</dt><dd id="tile-miles"></dd></div>
+              <div class="stat"><dt>Longest mi</dt><dd id="tile-longest"></dd></div>
+              <div class="stat"><dt>Avg /mi</dt><dd id="tile-pace"></dd></div>
             </dl>
+            <p class="delta" id="hero-delta"></p>
           </section>
 
           <figure class="card chart-card" id="chart-weekly">
@@ -156,10 +175,6 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v18M6 7h12M6 12h9M6 17h11" /></svg>
         <span>Timeline</span>
       </a>
-      <button type="button" class="tab tab-log" data-open-log>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-        <span>Add run</span>
-      </button>
       <a href="#runs" class="tab" data-view="runs">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v14H3zM3 10h18M3 14.5h18M9 10v9" /></svg>
         <span>Log</span>

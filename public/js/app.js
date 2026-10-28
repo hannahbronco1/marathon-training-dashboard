@@ -1,6 +1,7 @@
 import { ApiError, isConfigured, passcode, runsApi } from './store.js';
 import { renderChart } from './charts.js';
 import { LOCATIONS, RUN_TYPES, locationLabel, runTypeLabel, validateRun } from './run-schema.js';
+import { PLAN } from './plan.js';
 import * as S from './stats.js';
 
 const VIEWS = ['dashboard', 'timeline', 'runs', 'weekly'];
@@ -105,6 +106,18 @@ const compactNumber = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
 const paceTick = (s) => S.formatPace(s, false);
 const weekTitle = (w) => `Week ${w.week} · ${S.formatWeekRange(w.week)}`;
 
+// The race bib counts down to race day. It doesn't depend on any runs.
+function renderBib() {
+  const { days, week, totalWeeks } = S.raceCountdown();
+  $('#bib-label').textContent =
+    days > 1 ? 'Days to the start line' : days === 1 ? 'Day to the start line' : days === 0 ? 'Race day' : 'Finish line crossed';
+  $('#bib-number').textContent = days > 0 ? days : '26.2';
+  $('#bib-date').textContent = S.formatBibDate(PLAN.raceDate);
+  const pad = (n) => String(n).padStart(2, '0');
+  $('#bib-week').textContent =
+    week === null ? `Starts ${S.formatBibDate(S.planWeekStart(1))}` : `Week ${pad(Math.min(week, totalWeeks))} / ${totalWeeks}`;
+}
+
 function renderDashboard() {
   const hasRuns = state.runs.length > 0;
   $('#dashboard-empty').hidden = hasRuns;
@@ -116,19 +129,19 @@ function renderDashboard() {
   const lastWeek = weeks.at(-2);
   const isToday = thisWeek.week === S.planWeekFor(S.todayISO());
 
-  $('#hero-title').textContent = `${isToday ? 'This week · ' : ''}${weekTitle(thisWeek)}`;
-  $('#hero-miles').textContent = S.formatMiles(thisWeek.miles, 1);
-  $('#hero-delta').textContent = !lastWeek
+  $('#hero-title').textContent = isToday ? 'This week' : `Week ${thisWeek.week}`;
+  $('#hero-range').textContent = `${S.weekCode(thisWeek.week)} · ${S.formatWeekRange(thisWeek.week)}`;
+  $('#tile-miles').textContent = thisWeek.miles.toFixed(1);
+  $('#tile-longest').textContent = thisWeek.runCount ? thisWeek.longestMiles.toFixed(1) : '--';
+  $('#tile-pace').textContent = thisWeek.runCount ? S.formatPace(weekPace(thisWeek), false) : '--';
+  const comparison = !lastWeek
     ? 'Week 1 of your plan'
     : thisWeek.miles
       ? deltaText(thisWeek.miles, lastWeek.miles, 'last week')
       : `Last week: ${S.formatMiles(lastWeek.miles, 1)}`;
-  $('#tile-runs').textContent = thisWeek.runCount;
-  $('#tile-time').textContent = S.formatHours(thisWeek.durationSeconds);
-  $('#tile-pace').textContent = S.formatPace(weekPace(thisWeek));
-  $('#tile-longest').textContent = thisWeek.runCount ? S.formatMiles(thisWeek.longestMiles, 1) : '–';
+  $('#hero-delta').textContent = [plural(thisWeek.runCount, 'run'), S.formatHours(thisWeek.durationSeconds), comparison].join(' · ');
 
-  const label = (w) => `W${w.week}`;
+  const label = (w) => S.weekCode(w.week);
   const newestFirst = [...weeks].reverse();
 
   renderChartCard(
@@ -174,6 +187,7 @@ function renderDashboard() {
     {
       kind: 'line',
       yZero: false,
+      yTime: true,
       ariaLabel: 'Average pace each plan week, minutes per mile',
       yFormat: paceTick,
       valueFormat: paceTick,
@@ -196,29 +210,50 @@ function renderDashboard() {
 
 // ---------- Timeline ----------
 
-function runItem(run) {
+// How each run type's tag is drawn (the tag always shows the type's name).
+const TAG_STYLES = { long: 'filled', race: 'filled', easy: 'outline', tempo: 'outline', other: 'dashed' };
+
+function runItem(run, isLatest) {
   const where = [S.formatTemperature(run.temperature_f), run.conditions, locationLabel(run.location)].filter(Boolean);
+  const food = [
+    ['Pre', run.food_pre],
+    ['During', run.food_during],
+    ['Post', run.food_post],
+  ].filter(([, text]) => text);
   return h(
     'li',
-    {},
+    { class: `run${isLatest ? ' is-latest' : ''}` },
+    h('span', { class: 'run-dot', 'aria-hidden': 'true' }),
     h(
-      'button',
-      { type: 'button', class: 'run-item', onclick: () => openRunDialog(run) },
-      h('span', { class: 'run-dot', 'aria-hidden': 'true' }),
+      'div',
+      { class: 'run-head' },
       h(
-        'span',
-        { class: 'run-body' },
-        h('span', { class: 'run-meta' }, `${S.formatLongDate(run.run_date)} · Day ${run.plan_day} · ${runTypeLabel(run.run_type)}`),
+        'h4',
+        { class: 'run-title' },
+        // The title's button covers the whole entry, so tapping anywhere edits it.
         h(
-          'span',
-          { class: 'run-main' },
-          h('strong', {}, S.formatMiles(run.miles)),
-          ` in ${S.formatDuration(run.duration_seconds)} · ${S.formatPace(runPace(run))}`,
+          'button',
+          { type: 'button', class: 'run-open', onclick: () => openRunDialog(run) },
+          `${S.formatLongDate(run.run_date)} · Run ${run.plan_day}`,
         ),
-        h('span', { class: 'run-meta' }, where.join(' · ')),
-        run.notes && h('span', { class: 'run-notes' }, run.notes),
       ),
+      h('span', { class: `tag tag-${TAG_STYLES[run.run_type] ?? 'outline'}` }, runTypeLabel(run.run_type)),
     ),
+    h(
+      'p',
+      { class: 'run-stats' },
+      h('span', { class: 'run-miles' }, S.shortMiles(run.miles), h('small', {}, ' mi')),
+      h('span', {}, S.formatDuration(run.duration_seconds)),
+      h('span', {}, S.formatPace(runPace(run))),
+    ),
+    h('p', { class: 'run-where' }, where.join(' · ')),
+    food.length > 0 &&
+      h(
+        'dl',
+        { class: 'food' },
+        food.map(([label, text]) => h('div', {}, h('dt', {}, label), h('dd', {}, text))),
+      ),
+    run.notes && h('p', { class: 'run-notes' }, run.notes),
   );
 }
 
@@ -229,6 +264,7 @@ function renderTimeline() {
     if (!byWeek.has(run.plan_week)) byWeek.set(run.plan_week, []);
     byWeek.get(run.plan_week).push(run);
   }
+  const latest = byWeek.values().next().value?.[0];
   $('#timeline').replaceChildren(
     ...[...byWeek].map(([week, runs]) => {
       const total = runs.reduce((sum, r) => sum + Number(r.miles), 0);
@@ -238,10 +274,10 @@ function renderTimeline() {
         h(
           'h3',
           { class: 'timeline-week-title' },
-          h('span', {}, `Week ${week} · ${S.formatWeekRange(week)}`),
-          h('span', { class: 'timeline-week-total' }, `${S.formatMiles(total, 1)} · ${plural(runs.length, 'run')}`),
+          h('span', {}, `Week ${String(week).padStart(2, '0')} · ${S.formatWeekRange(week)}`),
+          h('span', { class: 'timeline-week-total' }, `${S.shortMiles(total)} mi · ${plural(runs.length, 'run')}`),
         ),
-        h('ol', { class: 'timeline-runs' }, runs.map(runItem)),
+        h('ol', { class: 'timeline-runs' }, runs.map((run) => runItem(run, run === latest))),
       );
     }),
   );
@@ -391,21 +427,22 @@ function renderWeekly() {
     ...weeks
       .map((week, i) => {
         const previous = weeks[i - 1];
+        const isNow = week.week === todayWeek;
         const title = h(
           'h3',
           {},
-          `Week ${week.week} · ${S.formatWeekRange(week.week)}`,
-          week.week === todayWeek && h('span', { class: 'tag' }, 'This week'),
+          `${S.weekCode(week.week)} · ${S.formatWeekRange(week.week)}`,
+          isNow && h('span', { class: 'tag tag-filled' }, 'Now'),
         );
         if (!week.runCount) {
-          return h('li', { class: 'week week-empty' }, title, h('span', { class: 'sub' }, 'No runs'));
+          return h('li', { class: `week week-empty${isNow ? ' is-now' : ''}` }, title, h('span', { class: 'sub' }, 'No runs'));
         }
         const share = peak ? (week.miles / peak) * 100 : 0;
         return h(
           'li',
-          { class: 'week card' },
+          { class: `week card${isNow ? ' is-now' : ''}` },
           title,
-          h('p', { class: 'week-distance' }, S.formatMiles(week.miles, 1)),
+          h('p', { class: 'week-distance' }, S.shortMiles(week.miles), h('small', {}, ' mi')),
           previous && h('p', { class: 'delta' }, deltaText(week.miles, previous.miles, 'the previous week')),
           h(
             'div',
@@ -417,8 +454,8 @@ function renderWeekly() {
             { class: 'tiles' },
             h('div', {}, h('dt', {}, 'Runs'), h('dd', {}, week.runCount)),
             h('div', {}, h('dt', {}, 'Time'), h('dd', {}, S.formatHours(week.durationSeconds))),
-            h('div', {}, h('dt', {}, 'Avg pace'), h('dd', {}, S.formatPace(weekPace(week)))),
-            h('div', {}, h('dt', {}, 'Longest'), h('dd', {}, S.formatMiles(week.longestMiles, 1))),
+            h('div', {}, h('dt', {}, 'Avg /mi'), h('dd', {}, S.formatPace(weekPace(week), false))),
+            h('div', {}, h('dt', {}, 'Longest'), h('dd', {}, `${S.shortMiles(week.longestMiles)} mi`)),
           ),
         );
       })
@@ -430,6 +467,7 @@ function renderWeekly() {
 
 function render() {
   if (!state.loaded) return;
+  renderBib();
   renderDashboard();
   renderTimeline();
   renderFilterOptions();
@@ -679,6 +717,7 @@ function wireEvents() {
 }
 
 async function init() {
+  $('#brand').textContent = `${PLAN.shortName} · ${PLAN.raceDate.slice(0, 4)}`;
   buildRunForm();
   wireEvents();
   if (!(await isConfigured())) {

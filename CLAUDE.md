@@ -21,7 +21,7 @@ A phone-friendly dashboard where I log each run and see my progress as a timelin
 ## Build order
 1. Entry form with validation (miles > 0; week/day whole numbers; valid duration) and a sortable, filterable log table — **done**
 2. Progress views: weekly totals (vs. targets if set), total miles, longest run, miles-over-time chart, temperature vs. distance/pace
-3. Race-day countdown and milestone celebrations (first 15-miler, peak week, etc.)
+3. Race-day countdown and milestone celebrations (first 15-miler, peak week, etc.) — countdown bib **done**; milestones to do
 4. CSV and JSON export/import so I never lose data
 
 # How to work with me
@@ -48,3 +48,6 @@ These override the defaults above where they differ.
 - Validation lives in `public/js/run-schema.js` and is shared by the browser and the Worker; keep the SQL checks in step with it.
 - Free-text fields (food, notes) are stored exactly as typed: no trimming or rewriting. Only an empty field becomes null.
 - Tests: `npm test` (node:test). Run them before committing.
+- **Design: dark-only "race bib" style**, based on a mock the user shared. Near-black surfaces, one neon lime accent (`#c8f135`), Space Grotesk for headings and body, JetBrains Mono for numbers, labels and tags (both from Google Fonts). The dashboard leads with a lime countdown bib (safety-pin dots, days to the start line, race date, WEEK nn / 20). Run type tags: long and race filled lime, easy and tempo outlined, other dashed. Charts use the lime accent with hollow markers. Tokens are at the top of `public/css/styles.css`.
+- The mock also shows a weeks strip, miles-over-time and temperature-vs-pace charts, and a next-milestone card; build those in their steps (2 and 3) in the same style.
+- Deploys: Cloudflare builds from `main`. The user approved pushing to `main` so changes deploy.

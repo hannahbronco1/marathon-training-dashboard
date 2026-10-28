@@ -37,7 +37,7 @@ test('duration helpers', () => {
 });
 
 test('pace is minutes per mile', () => {
-  assert.equal(S.formatPace(S.paceSeconds(3600, 6)), '10:00 /mi');
+  assert.equal(S.formatPace(S.paceSeconds(3600, 6)), '10:00/mi');
   assert.equal(S.formatPace(S.paceSeconds(2730, 5.25), false), '8:40');
   assert.equal(S.formatPace(null), '–');
 });
@@ -63,4 +63,15 @@ test('currentPlanWeek covers runs logged ahead', () => {
 test('percentChange handles a missing baseline', () => {
   assert.equal(S.percentChange(11, 10), 0.1);
   assert.equal(S.percentChange(5, 0), null);
+});
+
+test('race countdown and bib formatting', () => {
+  assert.deepEqual(S.raceCountdown('2026-10-28'), { days: 130, week: 2, totalWeeks: 20 });
+  assert.deepEqual(S.raceCountdown('2027-03-07'), { days: 0, week: 20, totalWeeks: 20 });
+  assert.equal(S.raceCountdown('2026-10-01').week, null);
+  assert.equal(S.formatBibDate('2027-03-07'), 'SUN 03.07.27');
+  assert.equal(S.weekCode(4), 'W04');
+  assert.equal(S.shortMiles(10.7), '10.7');
+  assert.equal(S.shortMiles('6.00'), '6');
+  assert.equal(S.shortMiles(3.25), '3.25');
 });

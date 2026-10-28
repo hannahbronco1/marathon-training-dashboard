@@ -7,6 +7,7 @@
 //   yFormat:     value -> axis tick text
 //   valueFormat: value -> direct label on the latest point (defaults to yFormat)
 //   yZero:       start the y axis at 0 (default true)
+//   yTime:       values are seconds; tick on clock-friendly steps (15s, 30s, 1m…)
 //   ariaLabel
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -28,12 +29,16 @@ function svgText(parent, text, attrs) {
   return node;
 }
 
-export function niceTicks(min, max, count = 4) {
+const TIME_STEPS = [15, 30, 60, 120, 300, 600, 900, 1800, 3600];
+
+export function niceTicks(min, max, count = 4, time = false) {
   if (!(max > min)) max = min + 1;
   const rough = (max - min) / count;
   const magnitude = 10 ** Math.floor(Math.log10(rough));
   const norm = rough / magnitude;
-  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * magnitude;
+  const step = time
+    ? (TIME_STEPS.find((s) => s >= rough) ?? TIME_STEPS.at(-1))
+    : (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * magnitude;
   const lo = Math.floor(min / step) * step;
   const hi = Math.ceil(max / step) * step;
   const ticks = [];
@@ -122,7 +127,7 @@ function draw(host) {
     return;
   }
 
-  const ticks = niceTicks(yZero ? 0 : Math.min(...values), Math.max(...values));
+  const ticks = niceTicks(yZero ? 0 : Math.min(...values), Math.max(...values), 4, spec.yTime);
   const yMin = ticks[0];
   const yMax = ticks[ticks.length - 1];
   const tickLabels = ticks.map(yFormat);

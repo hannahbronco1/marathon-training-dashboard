@@ -4,5 +4,6 @@
 export const PLAN = {
   startDate: '2026-10-20', // Week 1 is Mon Oct 19 – Sun Oct 25
   raceName: 'ASICS Los Angeles Marathon',
+  shortName: 'LA Marathon', // shown in the header
   raceDate: '2027-03-07', // Sunday, the last day of Week 20
 };
