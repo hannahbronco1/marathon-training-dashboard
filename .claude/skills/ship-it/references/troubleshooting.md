@@ -42,6 +42,13 @@ Match the owner's screenshot or error text, then give the fix as one clear click
 | Secret saved but no new version in **Deployments** | Normal. Cloudflare doesn't always list secret changes there. | Reload the site and check what it reports instead. |
 | "I don't see a Deploy button" | Cloudflare's wording varies (Deploy / Save / Add variable). | If the secret shows as **Secret / Value encrypted / Rotate**, it's saved. |
 
+### In Supabase's SQL Editor
+
+| What they see | What it means | Fix |
+| --- | --- | --- |
+| **"Success. No rows returned"** after an `insert`, `update` or `create` | Normal. The editor only shows rows a query sends back, and these send none. It does **not** say "3 rows affected". | Confirm on the site instead (reload). To see a count in the editor, add `returning id` to the statement. |
+| An old saved query that starts with `drop table if exists public.runs;` | The original table setup. Running it again **deletes every run**. | Have the owner delete that saved query (**⋯ → Delete**) and run each new SQL block in a fresh query (**+**). Never hand over SQL containing `drop` once real runs exist. |
+
 ### Pushing from this session
 
 | What you see | What it means | Fix |
