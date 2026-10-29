@@ -102,6 +102,12 @@ function renderChartCard(id, spec, table) {
   const card = $(`#${id}`);
   renderChart($('.chart-plot', card), spec);
   renderTable($('.table-wrap', card), table.headers, table.rows);
+  $('.chart-table', card).hidden = table.rows.length === 0;
+}
+
+// A chart frame that says "No runs yet" until there's something to plot.
+function renderEmptyChart(id) {
+  renderChartCard(id, { kind: 'line', points: [], ariaLabel: 'No runs yet' }, { headers: [], rows: [] });
 }
 
 const compactNumber = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
@@ -120,22 +126,23 @@ function renderBib() {
     week === null ? `Starts ${S.formatBibDate(S.planWeekStart(1))}` : `Week ${pad(Math.min(week, totalWeeks))} / ${totalWeeks}`;
 }
 
+// The whole dashboard shows from day one; with no runs yet the numbers
+// read zero, the strip shows the plan's weeks and charts say "No runs yet".
 function renderDashboard() {
-  const hasRuns = state.runs.length > 0;
-  $('#dashboard-empty').hidden = hasRuns;
-  $('#dashboard-content').hidden = !hasRuns;
-  if (!hasRuns) return;
+  $('#dashboard-empty').hidden = state.runs.length > 0;
 
   // Plan totals.
   const totals = S.planTotals(state.runs);
   $('#tile-total').textContent = totals.miles.toFixed(1);
-  $('#tile-pace').textContent = S.formatPace(S.paceSeconds(totals.durationSeconds, totals.miles), false);
+  $('#tile-pace').textContent = totals.runCount ? S.formatPace(S.paceSeconds(totals.durationSeconds, totals.miles), false) : '--';
   const longest = totals.longest;
   const longestButton = $('#tile-longest');
-  longestButton.textContent = Number(longest.miles).toFixed(1);
-  longestButton.setAttribute('aria-label', `Longest run: ${S.formatMiles(longest.miles)} on ${S.formatLongDate(longest.run_date)}. Open it.`);
-  longestButton.onclick = () => openRunDialog(longest);
-  $('#tile-longest-date').textContent = S.formatShortDate(longest.run_date);
+  longestButton.textContent = longest ? Number(longest.miles).toFixed(1) : '--';
+  longestButton.disabled = !longest;
+  if (longest) longestButton.setAttribute('aria-label', `Longest run: ${S.formatMiles(longest.miles)} on ${S.formatLongDate(longest.run_date)}. Open it.`);
+  else longestButton.removeAttribute('aria-label');
+  longestButton.onclick = longest ? () => openRunDialog(longest) : null;
+  $('#tile-longest-date').textContent = longest ? S.formatShortDate(longest.run_date) : '';
 
   renderWeeksStrip();
   renderMilesOverTime();
@@ -192,6 +199,7 @@ function renderWeeksStrip() {
   const parts = [plural(thisWeek.runCount, 'run'), S.formatHours(thisWeek.durationSeconds)];
   if (thisWeek.runCount) parts.push(S.formatPace(weekPace(thisWeek)));
   parts.push(comparison);
+  if (!state.runs.length) parts.splice(0, parts.length, 'nothing logged yet');
   $('#hero-delta').textContent = `${thisWeek.week === todayWeek ? 'This week' : `Week ${thisWeek.week}`}: ${parts.join(' · ')}`;
   scrollStripToNow();
 }
@@ -206,6 +214,7 @@ function scrollStripToNow() {
 
 function renderMilesOverTime() {
   const series = S.cumulativeMiles(state.runs);
+  if (!series.length) return renderEmptyChart('chart-total');
   const time = (iso) => S.parseDate(iso).getTime();
   const today = S.todayISO();
   const first = series[0].date;
@@ -242,6 +251,7 @@ function renderMilesOverTime() {
 
 function renderTempVsPace() {
   const runs = S.sortRunsDesc(state.runs);
+  if (!runs.length) return renderEmptyChart('chart-temp');
   const maxMiles = Math.max(...runs.map((r) => Number(r.miles)));
   const { longest } = S.planTotals(runs);
   // With a handful of runs every dot gets a label, as in the design; after

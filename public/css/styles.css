@@ -400,6 +400,11 @@ body.needs-setup .add-btn {
 }
 
 /* The longest-run value opens that run. */
+.stat-link:disabled {
+  text-decoration: none;
+  cursor: default;
+}
+
 .stat-link {
   padding: 0;
   border: 0;
