@@ -668,6 +668,25 @@ function openPasscodeDialog(message) {
 
 // ---------- Chat (test) ----------
 
+// Explains why chat is off, using the secret names the Worker reports.
+function showChatStatus(config) {
+  $('#chat-off').hidden = config.chat !== false;
+  if (config.chat !== false) return;
+  const seen = config.nvidiaSecretsSeen ?? [];
+  const exact = seen.find((s) => s.name === 'NVIDIA_API_KEY');
+  let detail;
+  if (exact?.empty) {
+    detail = 'The site sees NVIDIA_API_KEY, but its value is empty. Delete it and add it again with your key pasted in.';
+  } else if (seen.length) {
+    const names = seen.map((s) => `“${s.name}”`).join(', ');
+    detail = `The site sees ${names}, which isn’t exactly NVIDIA_API_KEY (check capitals and spaces).`;
+  } else {
+    detail =
+      'The site doesn’t see any NVIDIA secret. Check it’s under Settings → Variables and Secrets (not Build), and that the change was saved or deployed.';
+  }
+  $('#chat-off-detail').textContent = detail;
+}
+
 // The conversation lives only in this page; reloading starts fresh.
 const chatState = { messages: [], sending: false };
 
@@ -806,7 +825,7 @@ async function init() {
     showSetup(config.missing ?? []);
     return;
   }
-  $('#chat-off').hidden = config.chat !== false;
+  showChatStatus(config);
   await loadRuns();
 }
 

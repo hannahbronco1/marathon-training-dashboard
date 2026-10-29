@@ -80,7 +80,16 @@ async function handleApi(request, env, url) {
   // screen can show what's left to add.
   if (pathname === '/api/config' && method === 'GET') {
     const missing = REQUIRED_SECRETS.filter((name) => !String(env[name] ?? '').trim());
-    return json({ configured: missing.length === 0, missing, chat: isNvidiaConfigured(env) });
+    const chat = isNvidiaConfigured(env);
+    const body = { configured: missing.length === 0, missing, chat };
+    // When chat is off, list any NVIDIA-looking secret names the Worker can
+    // see (names only, plus whether each is empty) to help spot typos.
+    if (!chat) {
+      body.nvidiaSecretsSeen = Object.keys(env)
+        .filter((name) => /nvidia/i.test(name))
+        .map((name) => ({ name, empty: !String(env[name] ?? '').trim() }));
+    }
+    return json(body);
   }
 
   if (pathname === '/api/runs' || pathname.startsWith('/api/runs/')) {

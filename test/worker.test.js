@@ -64,14 +64,29 @@ test('config lists missing secrets by name only', async () => {
     configured: false,
     missing: ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'APP_PASSCODE'],
     chat: false,
+    nvidiaSecretsSeen: [],
   });
   const blank = await call('/api/config', { auth: null, env: { ...fullEnv, SUPABASE_SERVICE_ROLE_KEY: '  ' } });
-  assert.deepEqual(await blank.json(), { configured: false, missing: ['SUPABASE_SERVICE_ROLE_KEY'], chat: false });
+  assert.deepEqual(await blank.json(), {
+    configured: false,
+    missing: ['SUPABASE_SERVICE_ROLE_KEY'],
+    chat: false,
+    nvidiaSecretsSeen: [],
+  });
   const on = await call('/api/config', { auth: null });
   const body = await on.text();
-  assert.deepEqual(JSON.parse(body), { configured: true, missing: [], chat: false });
+  assert.deepEqual(JSON.parse(body), { configured: true, missing: [], chat: false, nvidiaSecretsSeen: [] });
   const withChat = await call('/api/config', { auth: null, env: { ...fullEnv, NVIDIA_API_KEY: 'nvapi-x' } });
-  assert.equal((await withChat.json()).chat, true);
+  const withChatBody = await withChat.json();
+  assert.equal(withChatBody.chat, true);
+  assert.equal(withChatBody.nvidiaSecretsSeen, undefined);
+  const typo = await call('/api/config', { auth: null, env: { ...fullEnv, 'NVIDIA_API_Key ': 'nvapi-secret-value', NVIDIA_OTHER: '' } });
+  const typoText = await typo.text();
+  assert.deepEqual(JSON.parse(typoText).nvidiaSecretsSeen, [
+    { name: 'NVIDIA_API_Key ', empty: false },
+    { name: 'NVIDIA_OTHER', empty: true },
+  ]);
+  assert.doesNotMatch(typoText, /nvapi-secret-value/);
   assert.doesNotMatch(body, /service-key|letmein/);
 });
 

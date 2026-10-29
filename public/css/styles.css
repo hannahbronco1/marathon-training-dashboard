@@ -1108,6 +1108,16 @@ th[aria-sort='descending'] {
   margin-bottom: 0;
 }
 
+.chat-off {
+  display: grid;
+  gap: 8px;
+}
+
+.chat-off-detail {
+  color: var(--text-2);
+  font-size: 0.875rem;
+}
+
 .chat-off code {
   font-family: var(--font-mono);
   font-size: 0.8125rem;
