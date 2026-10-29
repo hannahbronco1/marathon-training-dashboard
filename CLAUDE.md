@@ -44,7 +44,7 @@ A phone-friendly dashboard where I log each run and see my progress as a timelin
 These override the defaults above where they differ.
 - **Storage: Supabase** (chosen over localStorage so runs are safe and shared across devices). The browser never talks to Supabase directly: a Cloudflare Worker (`src/`) holds the service role key and checks an `APP_PASSCODE` on every request. The table is in `supabase/migrations/`; RLS is on with no policies.
 - **Hosting: Cloudflare Workers** with static assets from `public/` (no build step). `npm run dev` runs it locally, `npm run deploy` publishes it.
-- **No AI/LLM features.** The NVIDIA coach was removed because it conflicted with the boundaries above.
+- **NVIDIA chat endpoint (added 2026-10-29 at the user's request).** `POST /api/chat` in `src/nvidia.js` calls `https://integrate.api.nvidia.com/v1/chat/completions` with model `nvidia/nemotron-3.5-lightning-30b-a3b`, using the `NVIDIA_API_KEY` secret (optional; chat returns 503 without it). Passcode-protected; no UI yet. The earlier NVIDIA coach was removed for conflicting with the Boundaries; anything built on this endpoint must respect them too (no coaching, no insights or warnings from notes, no nutrition analysis of food). Check in before wiring it into a feature.
 - Validation lives in `public/js/run-schema.js` and is shared by the browser and the Worker; keep the SQL checks in step with it.
 - Free-text fields (food, notes) are stored exactly as typed: no trimming or rewriting. Only an empty field becomes null.
 - Tests: `npm test` (node:test). Run them before committing.

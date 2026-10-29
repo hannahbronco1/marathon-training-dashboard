@@ -6,3 +6,6 @@ APP_PASSCODE=
 # Supabase → Project Settings → API. The service role key stays on the server.
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
+
+# Optional: enables POST /api/chat. https://build.nvidia.com → any model → "Get API Key"
+NVIDIA_API_KEY=

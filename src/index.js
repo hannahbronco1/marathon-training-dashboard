@@ -11,6 +11,7 @@ import {
   updateRun,
   UpstreamError,
 } from './supabase.js';
+import { chat, isNvidiaConfigured, parseChatRequest, TimeoutError } from './nvidia.js';
 
 const MAX_BODY_BYTES = 64 * 1024;
 const REQUIRED_SECRETS = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'APP_PASSCODE'];
@@ -110,6 +111,16 @@ async function handleApi(request, env, url) {
     }
   }
 
+  // Sends a chat request to NVIDIA. Passcode-protected so nobody else can
+  // spend your NVIDIA credits.
+  if (pathname === '/api/chat' && method === 'POST') {
+    if (!isNvidiaConfigured(env)) throw new HttpError(503, 'Set the NVIDIA_API_KEY secret to use chat.');
+    await requirePasscode(request, env);
+    const { value, error } = parseChatRequest(await readJson(request));
+    if (error) throw new HttpError(400, error);
+    return json(await chat(env, value));
+  }
+
   throw new HttpError(404, 'Not found.');
 }
 
@@ -124,6 +135,7 @@ export default {
       if (err instanceof HttpError) {
         return json({ error: err.message, ...(err.details && { fields: err.details }) }, err.status);
       }
+      if (err instanceof TimeoutError) return json({ error: err.message }, 504);
       if (err instanceof UpstreamError) {
         console.error(err.message, err.detail);
         return json({ error: `${err.service} request failed (${err.status}).` }, 502);

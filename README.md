@@ -2,7 +2,7 @@
 
 A phone-friendly dashboard for training for the ASICS Los Angeles Marathon (March 7, 2027). Log each run, then follow your progress in a sortable run log, a timeline, weekly summaries and charts.
 
-It runs on **Cloudflare Workers** (static files plus a small API) and saves runs in **Supabase**.
+It runs on **Cloudflare Workers** (static files plus a small API) and saves runs in **Supabase**. An optional `/api/chat` route sends chat requests to an NVIDIA-hosted model.
 
 ## What's in each run
 
@@ -25,6 +25,7 @@ public/              The website (no build step)
 src/                 The Cloudflare Worker (server)
   index.js           /api routes and the passcode check
   supabase.js        Reads and writes the Supabase runs table
+  nvidia.js          Chat requests to NVIDIA (optional)
 supabase/migrations/ SQL that creates the runs table
 test/                Automated tests (npm test)
 ```
@@ -78,6 +79,7 @@ Then, in Cloudflare, open the Worker → **Settings** → **Variables and Secret
 | `SUPABASE_URL` | Your Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Your Supabase service_role key |
 | `APP_PASSCODE` | A long passcode you make up |
+| `NVIDIA_API_KEY` | Optional: your NVIDIA API key from [build.nvidia.com](https://build.nvidia.com), for `/api/chat` |
 
 On your phone, open the `*.workers.dev` URL, enter your passcode once, and use **Add to Home Screen** for an app icon.
 
@@ -87,7 +89,7 @@ On your phone, open the `*.workers.dev` URL, enter your passcode once, and use *
 
 ## API
 
-All `/api/runs` routes need `Authorization: Bearer <APP_PASSCODE>`.
+All `/api/runs` and `/api/chat` routes need `Authorization: Bearer <APP_PASSCODE>`.
 
 | Method | Path | Body | Returns |
 | --- | --- | --- | --- |
@@ -96,6 +98,9 @@ All `/api/runs` routes need `Authorization: Bearer <APP_PASSCODE>`.
 | POST | `/api/runs` | run | `{ run }` |
 | PATCH | `/api/runs/:id` | run | `{ run }` |
 | DELETE | `/api/runs/:id` | | 204 |
+| POST | `/api/chat` | `{ prompt }` or `{ messages, max_tokens? }` | `{ reply, finish_reason, model, usage }` |
+
+`/api/chat` uses the model `nvidia/nemotron-3.5-lightning-30b-a3b` at `https://integrate.api.nvidia.com/v1`. `messages` is a list of `{ role, content }` with roles `system`, `user` or `assistant` (up to 40). `max_tokens` defaults to 1024 (max 4096). Any `<think>…</think>` reasoning is stripped from `reply`.
 
 A run is:
 

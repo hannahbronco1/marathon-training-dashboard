@@ -165,3 +165,79 @@ test('removed routes are gone', async () => {
   assert.equal((await call('/api/coach', { method: 'POST', body: {} })).status, 404);
   assert.equal((await call('/api/runs/import', { method: 'POST', body: {} })).status, 404);
 });
+
+const chatEnv = { ...fullEnv, NVIDIA_API_KEY: ' nvapi-test ' };
+
+test('chat sends the request to NVIDIA with the right model and key', async () => {
+  respond = () =>
+    Response.json({
+      model: 'nvidia/nemotron-3.5-lightning-30b-a3b',
+      choices: [{ message: { content: '<think>planning…</think>\n\nHello there!' }, finish_reason: 'stop' }],
+      usage: { total_tokens: 12 },
+    });
+  const res = await call('/api/chat', { method: 'POST', env: chatEnv, body: { prompt: 'Say hello' } });
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), {
+    reply: 'Hello there!',
+    finish_reason: 'stop',
+    model: 'nvidia/nemotron-3.5-lightning-30b-a3b',
+    usage: { total_tokens: 12 },
+  });
+  assert.equal(calls[0].url, 'https://integrate.api.nvidia.com/v1/chat/completions');
+  assert.equal(calls[0].init.headers.Authorization, 'Bearer nvapi-test');
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    model: 'nvidia/nemotron-3.5-lightning-30b-a3b',
+    messages: [{ role: 'user', content: 'Say hello' }],
+    max_tokens: 1024,
+    stream: false,
+  });
+});
+
+test('chat accepts a message list and max_tokens', async () => {
+  respond = () => Response.json({ choices: [{ message: { content: 'Sure.' }, finish_reason: 'stop' }] });
+  const messages = [
+    { role: 'system', content: 'Be brief.' },
+    { role: 'user', content: 'Hi', extra: 'dropped' },
+  ];
+  const res = await call('/api/chat', { method: 'POST', env: chatEnv, body: { messages, max_tokens: 200 } });
+  assert.equal(res.status, 200);
+  const sent = JSON.parse(calls[0].init.body);
+  assert.deepEqual(sent.messages, [
+    { role: 'system', content: 'Be brief.' },
+    { role: 'user', content: 'Hi' },
+  ]);
+  assert.equal(sent.max_tokens, 200);
+});
+
+test('chat needs the passcode and the NVIDIA key', async () => {
+  assert.equal((await call('/api/chat', { method: 'POST', body: { prompt: 'hi' } })).status, 503);
+  assert.equal((await call('/api/chat', { method: 'POST', env: chatEnv, auth: null, body: { prompt: 'hi' } })).status, 401);
+  assert.equal(calls.length, 0);
+});
+
+test('chat rejects bad requests before calling NVIDIA', async () => {
+  for (const body of [{}, { messages: [] }, { messages: [{ role: 'tool', content: 'x' }] }, { prompt: '   ' }, { prompt: 'hi', max_tokens: 99999 }]) {
+    assert.equal((await call('/api/chat', { method: 'POST', env: chatEnv, body })).status, 400, JSON.stringify(body));
+  }
+  assert.equal(calls.length, 0);
+});
+
+test('chat hides NVIDIA error details and reports timeouts', async () => {
+  respond = () => new Response('{"detail":"internal key info"}', { status: 401 });
+  const failed = await call('/api/chat', { method: 'POST', env: chatEnv, body: { prompt: 'hi' } });
+  assert.equal(failed.status, 502);
+  assert.doesNotMatch(await failed.text(), /internal key info/);
+
+  respond = () => {
+    throw Object.assign(new Error('timed out'), { name: 'TimeoutError' });
+  };
+  const slow = await call('/api/chat', { method: 'POST', env: chatEnv, body: { prompt: 'hi' } });
+  assert.equal(slow.status, 504);
+
+  respond = () => {
+    throw new TypeError('fetch failed');
+  };
+  const offline = await call('/api/chat', { method: 'POST', env: chatEnv, body: { prompt: 'hi' } });
+  assert.equal(offline.status, 502);
+  assert.match((await offline.json()).error, /NVIDIA request failed \(unreachable\)/);
+});
