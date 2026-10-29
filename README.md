@@ -38,6 +38,8 @@ Your phone only ever talks to the Worker. The Worker holds the Supabase key and 
 2. Paste in everything from [`supabase/migrations/20261029000000_create_runs.sql`](supabase/migrations/20261029000000_create_runs.sql) and click **Run**.
 3. From **Project Settings** → **API**, copy the **Project URL** and the **service_role** key.
 
+For optional weekly mileage targets, also run [`supabase/migrations/20261030000000_create_week_targets.sql`](supabase/migrations/20261030000000_create_week_targets.sql) the same way. It only adds a new table.
+
 Row level security is on with no policies, so the public `anon` key can't read or change anything. Never put the service role key in browser code.
 
 ## 2. Run it on your computer (optional)
@@ -89,7 +91,7 @@ On your phone, open the `*.workers.dev` URL, enter your passcode once, and use *
 
 ## API
 
-All `/api/runs` and `/api/chat` routes need `Authorization: Bearer <APP_PASSCODE>`.
+All `/api/runs`, `/api/targets` and `/api/chat` routes need `Authorization: Bearer <APP_PASSCODE>`.
 
 | Method | Path | Body | Returns |
 | --- | --- | --- | --- |
@@ -98,6 +100,9 @@ All `/api/runs` and `/api/chat` routes need `Authorization: Bearer <APP_PASSCODE
 | POST | `/api/runs` | run | `{ run }` |
 | PATCH | `/api/runs/:id` | run | `{ run }` |
 | DELETE | `/api/runs/:id` | | 204 |
+| GET | `/api/targets` | | `{ targets: [{ plan_week, target_miles }] }` |
+| PUT | `/api/targets/:week` | `{ target_miles }` | `{ target }` |
+| DELETE | `/api/targets/:week` | | 204 |
 | POST | `/api/chat` | `{ prompt }` or `{ messages, max_tokens? }` | `{ reply, finish_reason, model, usage }` |
 
 `/api/chat` uses the model `nvidia/nemotron-3.5-lightning-30b-a3b` at `https://integrate.api.nvidia.com/v1`. `messages` is a list of `{ role, content }` with roles `system`, `user` or `assistant` (up to 40). `max_tokens` defaults to 1024 (max 4096). Any `<think>…</think>` reasoning is stripped from `reply`.

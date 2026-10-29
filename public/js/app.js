@@ -1,6 +1,6 @@
-import { ApiError, fetchConfig, passcode, runsApi, sendChat } from './store.js';
+import { ApiError, fetchConfig, passcode, runsApi, sendChat, targetsApi } from './store.js';
 import { renderChart } from './charts.js';
-import { LOCATIONS, RUN_TYPES, locationLabel, runTypeLabel, validateRun } from './run-schema.js';
+import { LOCATIONS, RUN_TYPES, locationLabel, runTypeLabel, validateRun, validateTarget } from './run-schema.js';
 import { PLAN } from './plan.js';
 import * as S from './stats.js';
 
@@ -36,6 +36,10 @@ const state = {
   showJournal: prefs.showJournal === true,
   filters: { week: '', type: '', location: '' },
   scrollToWeek: null,
+  // Weekly mileage targets: plan week -> miles. `targetsStatus` is 'ok',
+  // 'needs-setup' (the week_targets table isn't in Supabase yet) or 'error'.
+  targets: new Map(),
+  targetsStatus: 'ok',
 };
 
 // Builds an element. Children may be strings (inserted as text) or nodes.
@@ -149,7 +153,18 @@ function renderDashboard() {
   renderTempVsPace();
 }
 
+const targetsOn = () => state.targetsStatus === 'ok';
+
+// Share of a week's target done, 0–100, for progress bars.
+const targetShare = (miles, target) => Math.min(100, (miles / target) * 100);
+
+function chipMeter(miles, target) {
+  return h('span', { class: 'chip-meter', 'aria-hidden': 'true' }, h('span', { style: `width: ${targetShare(miles, target).toFixed(1)}%` }));
+}
+
 // One card per plan week, Week 1 to race week. Future weeks are dashed.
+// Tapping a past week opens its Weekly card; tapping a future week sets
+// its target.
 function renderWeeksStrip() {
   const { totalWeeks } = S.raceCountdown();
   const todayWeek = S.planWeekFor(S.todayISO());
@@ -159,13 +174,30 @@ function renderWeeksStrip() {
     ...weeks.map((w) => {
       const isNow = w.week === todayWeek;
       const isFuture = !w.runCount && (todayWeek === null || w.week > todayWeek);
+      const target = state.targets.get(w.week);
+      const targetText = target ? `, target ${S.shortMiles(target)} miles` : '';
       const code = h('span', { class: 'chip-code' }, S.weekCode(w.week), isNow && ' · Now');
+      const value = (text) => h('span', { class: 'chip-value' }, text, target && h('small', {}, `/${S.shortMiles(target)}`));
+
       if (isFuture) {
         const when = w.week === totalWeeks ? 'Race week' : S.formatShortDate(S.planWeekStart(w.week));
+        const parts = [code, value('--'), h('span', { class: 'chip-sub' }, when)];
+        if (!targetsOn()) {
+          return h('li', {}, h('div', { class: 'week-chip is-future', 'aria-label': `Week ${w.week}, starts ${S.formatLongDate(S.planWeekStart(w.week))}${targetText}` }, ...parts));
+        }
         return h(
           'li',
           {},
-          h('div', { class: 'week-chip is-future', 'aria-label': `Week ${w.week}, starts ${S.formatLongDate(S.planWeekStart(w.week))}` }, code, h('span', { class: 'chip-value' }, '--'), h('span', { class: 'chip-sub' }, when)),
+          h(
+            'button',
+            {
+              type: 'button',
+              class: 'week-chip is-future',
+              'aria-label': `Week ${w.week}, starts ${S.formatLongDate(S.planWeekStart(w.week))}${targetText}. ${target ? 'Change' : 'Set'} its target.`,
+              onclick: () => openTargetDialog(w.week),
+            },
+            ...parts,
+          ),
         );
       }
       return h(
@@ -176,16 +208,19 @@ function renderWeeksStrip() {
           {
             href: '#weekly',
             class: `week-chip${isNow ? ' is-now' : ''}`,
-            'aria-label': `Week ${w.week}, ${S.formatWeekRange(w.week)}: ${w.miles.toFixed(1)} miles, ${plural(w.runCount, 'run')}${isNow ? ', this week' : ''}. Open weekly summary.`,
+            'aria-label': `Week ${w.week}, ${S.formatWeekRange(w.week)}: ${w.miles.toFixed(1)} miles${targetText}, ${plural(w.runCount, 'run')}${isNow ? ', this week' : ''}. Open weekly summary.`,
             onclick: () => (state.scrollToWeek = w.week),
           },
           code,
-          h('span', { class: 'chip-value' }, w.miles.toFixed(1)),
+          value(w.miles.toFixed(1)),
           h('span', { class: 'chip-sub' }, plural(w.runCount, 'run')),
+          target && chipMeter(w.miles, target),
         ),
       );
     }),
   );
+
+  renderTargetsMeta();
 
   // A line about the current week under the strip.
   const upTo = S.summarizeWeeks(state.runs, S.currentPlanWeek(state.runs));
@@ -198,10 +233,31 @@ function renderWeeksStrip() {
       : `Last week: ${S.formatMiles(lastWeek.miles, 1)}`;
   const parts = [plural(thisWeek.runCount, 'run'), S.formatHours(thisWeek.durationSeconds)];
   if (thisWeek.runCount) parts.push(S.formatPace(weekPace(thisWeek)));
+  const thisTarget = state.targets.get(thisWeek.week);
+  if (thisTarget) parts.push(`${thisWeek.miles.toFixed(1)} of ${S.shortMiles(thisTarget)} mi target`);
   parts.push(comparison);
-  if (!state.runs.length) parts.splice(0, parts.length, 'nothing logged yet');
+  if (!state.runs.length) parts.splice(0, parts.length, thisTarget ? `nothing logged yet · ${S.shortMiles(thisTarget)} mi target` : 'nothing logged yet');
   $('#hero-delta').textContent = `${thisWeek.week === todayWeek ? 'This week' : `Week ${thisWeek.week}`}: ${parts.join(' · ')}`;
   scrollStripToNow();
+}
+
+// The line beside "Weeks": an Add link, an Edit link, or a setup note.
+function renderTargetsMeta() {
+  const meta = $('#weeks-meta');
+  if (state.targetsStatus === 'needs-setup') {
+    meta.replaceChildren('Targets need a database update');
+    return;
+  }
+  if (state.targetsStatus === 'error') {
+    meta.replaceChildren('Targets unavailable');
+    return;
+  }
+  const open = () => openTargetDialog(S.planWeekFor(S.todayISO()) ?? 1);
+  meta.replaceChildren(
+    ...(state.targets.size
+      ? [h('button', { type: 'button', class: 'link-btn', onclick: open }, 'Edit targets')]
+      : ['No weekly targets yet · ', h('button', { type: 'button', class: 'link-btn', onclick: open, 'aria-label': 'Add a weekly target' }, 'Add')]),
+  );
 }
 
 // Brings the current week's card into view without moving the page.
@@ -294,22 +350,35 @@ function renderWeeklyCharts(weeks) {
   const label = (w) => S.weekCode(w.week);
   const newestFirst = [...weeks].reverse();
 
+  const hasTargets = weeks.some((w) => state.targets.has(w.week));
+  $('#chart-weekly .sub').textContent = hasTargets ? 'Miles per plan week · the white line marks your target' : 'Miles per plan week';
   renderChartCard(
     'chart-weekly',
     {
       kind: 'column',
-      ariaLabel: 'Miles per plan week',
+      ariaLabel: hasTargets ? 'Miles per plan week, with your weekly targets' : 'Miles per plan week',
       yFormat: compactNumber,
       valueFormat: (v) => v.toFixed(1),
-      points: weeks.map((w) => ({
-        label: label(w),
-        value: w.miles,
-        tooltip: { value: S.formatMiles(w.miles, 1), title: weekTitle(w), detail: plural(w.runCount, 'run') },
-      })),
+      points: weeks.map((w) => {
+        const target = state.targets.get(w.week);
+        const runs = plural(w.runCount, 'run');
+        return {
+          label: label(w),
+          value: w.miles,
+          target,
+          tooltip: { value: S.formatMiles(w.miles, 1), title: weekTitle(w), detail: target ? `${runs} · target ${S.shortMiles(target)} mi` : runs },
+        };
+      }),
     },
     {
-      headers: ['Week', 'Miles', 'Runs'],
-      rows: newestFirst.map((w) => [`Week ${w.week}`, w.miles.toFixed(2), w.runCount]),
+      headers: hasTargets ? ['Week', 'Miles', 'Target', 'Runs'] : ['Week', 'Miles', 'Runs'],
+      rows: newestFirst.map((w) => {
+        const target = state.targets.get(w.week);
+        const row = [`Week ${w.week}`, w.miles.toFixed(2)];
+        if (hasTargets) row.push(target ? target.toFixed(2) : '–');
+        row.push(w.runCount);
+        return row;
+      }),
     },
   );
 
@@ -580,27 +649,43 @@ function renderWeekly() {
       .map((week, i) => {
         const previous = weeks[i - 1];
         const isNow = week.week === todayWeek;
+        const target = state.targets.get(week.week);
         const title = h(
           'h3',
           {},
           `${S.weekCode(week.week)} · ${S.formatWeekRange(week.week)}`,
           isNow && h('span', { class: 'tag tag-filled' }, 'Now'),
         );
+        const targetButton =
+          targetsOn() &&
+          h(
+            'button',
+            { type: 'button', class: 'link-btn week-target-btn', onclick: () => openTargetDialog(week.week), 'aria-label': `${target ? 'Edit' : 'Set'} the Week ${week.week} target` },
+            target ? 'Edit target' : 'Set target',
+          );
+        const head = h('div', { class: 'week-head' }, title, targetButton);
         if (!week.runCount) {
-          return h('li', { id: `week-${week.week}`, class: `week week-empty${isNow ? ' is-now' : ''}` }, title, h('span', { class: 'sub' }, 'No runs'));
+          return h(
+            'li',
+            { id: `week-${week.week}`, class: `week week-empty${isNow ? ' is-now' : ''}` },
+            head,
+            h('span', { class: 'sub' }, target ? `No runs · ${S.shortMiles(target)} mi target` : 'No runs'),
+          );
         }
-        const share = peak ? (week.miles / peak) * 100 : 0;
+        // With a target the bar shows progress toward it; otherwise it
+        // compares the week with your biggest week.
+        const share = target ? targetShare(week.miles, target) : peak ? (week.miles / peak) * 100 : 0;
+        const meterLabel = target
+          ? `${Math.round((week.miles / target) * 100)}% of your ${S.shortMiles(target)} mi target`
+          : `${Math.round(share)}% of your biggest week`;
         return h(
           'li',
           { id: `week-${week.week}`, class: `week card${isNow ? ' is-now' : ''}` },
-          title,
-          h('p', { class: 'week-distance' }, S.shortMiles(week.miles), h('small', {}, ' mi')),
+          head,
+          h('p', { class: 'week-distance' }, S.shortMiles(week.miles), h('small', {}, target ? ` / ${S.shortMiles(target)} mi` : ' mi')),
+          target && h('p', { class: 'week-target' }, meterLabel),
           previous && h('p', { class: 'delta' }, deltaText(week.miles, previous.miles, 'the previous week')),
-          h(
-            'div',
-            { class: 'meter', role: 'img', 'aria-label': `${Math.round(share)}% of your biggest week` },
-            h('span', { style: `width: ${share.toFixed(1)}%` }),
-          ),
+          h('div', { class: `meter${target ? ' is-target' : ''}`, role: 'img', 'aria-label': meterLabel }, h('span', { style: `width: ${share.toFixed(1)}%` })),
           h(
             'dl',
             { class: 'tiles' },
@@ -644,9 +729,25 @@ function route() {
   state.scrollToWeek = null;
 }
 
+// Targets are optional: if they can't load, the rest of the site still works.
+async function loadTargets() {
+  try {
+    const list = await targetsApi.list();
+    state.targets = new Map(list.map((t) => [t.plan_week, Number(t.target_miles)]));
+    state.targetsStatus = 'ok';
+  } catch (err) {
+    if (isAuthError(err)) throw err;
+    state.targets = new Map();
+    // A 404 from Supabase means the week_targets table hasn't been created.
+    state.targetsStatus = /\(404\)/.test(err.message) ? 'needs-setup' : 'error';
+    console.warn('Weekly targets unavailable:', err.message);
+  }
+}
+
 async function loadRuns() {
   try {
-    state.runs = (await runsApi.list()).map((r) => ({ ...r, miles: Number(r.miles), temperature_f: Number(r.temperature_f) }));
+    const [runs] = await Promise.all([runsApi.list(), loadTargets()]);
+    state.runs = runs.map((r) => ({ ...r, miles: Number(r.miles), temperature_f: Number(r.temperature_f) }));
     state.loaded = true;
     $('#loading').hidden = true;
     render();
@@ -812,6 +913,87 @@ async function deleteRun() {
   }
 }
 
+// ---------- Target dialog ----------
+
+const targetForm = () => $('#target-form');
+
+function clearTargetErrors() {
+  for (const el of $$('.field-error', targetForm())) el.textContent = '';
+}
+
+// Shows the chosen week's dates, miles so far and existing target. The
+// miles box only ever holds a number the runner typed or saved before.
+function syncTargetForm() {
+  const week = Number(targetForm().elements.plan_week.value);
+  const target = state.targets.get(week);
+  const logged = state.runs.filter((r) => r.plan_week === week).reduce((sum, r) => sum + Number(r.miles), 0);
+  targetForm().elements.target_miles.value = target ?? '';
+  $('#target-remove').hidden = !target;
+  $('#target-hint').textContent = `Week ${week} is ${S.formatLongDate(S.planWeekStart(week))} – ${S.formatLongDate(S.addDays(S.planWeekStart(week), 6))}. Logged so far: ${S.shortMiles(logged)} mi.`;
+}
+
+function openTargetDialog(week) {
+  const { totalWeeks } = S.raceCountdown();
+  const lastWeek = Math.max(totalWeeks, S.currentPlanWeek(state.runs));
+  $('#target-week').replaceChildren(
+    ...Array.from({ length: lastWeek }, (_, i) => {
+      const n = i + 1;
+      const target = state.targets.get(n);
+      return h('option', { value: n }, `Week ${n} · ${S.formatWeekRange(n)}${target ? ` · ${S.shortMiles(target)} mi` : ''}`);
+    }),
+  );
+  $('#target-week').value = String(Math.min(Math.max(week, 1), lastWeek));
+  clearTargetErrors();
+  syncTargetForm();
+  $('#target-dialog').showModal();
+  targetForm().elements.target_miles.focus();
+}
+
+async function saveTarget(event) {
+  event.preventDefault();
+  clearTargetErrors();
+  const form = targetForm();
+  const { value, errors } = validateTarget({ plan_week: form.elements.plan_week.value, target_miles: form.elements.target_miles.value });
+  if (errors) {
+    for (const [name, message] of Object.entries(errors)) $(`[data-error-for="${name}"]`, form).textContent = message;
+    form.elements.target_miles.focus();
+    return;
+  }
+  const submit = $('button[type="submit"]', form);
+  submit.disabled = true;
+  try {
+    const saved = await targetsApi.set(value.plan_week, value.target_miles);
+    state.targets.set(saved.plan_week, Number(saved.target_miles));
+    $('#target-dialog').close();
+    render();
+    toast(`Week ${value.plan_week} target saved`);
+  } catch (err) {
+    if (isAuthError(err)) openPasscodeDialog('Enter your passcode, then save again.');
+    else if (err instanceof ApiError && err.fields) {
+      for (const [name, message] of Object.entries(err.fields)) {
+        const slot = $(`[data-error-for="${name}"]`, form);
+        if (slot) slot.textContent = message;
+      }
+    } else $('[data-error-for="form"]', form).textContent = `Couldn’t save: ${err.message}`;
+  } finally {
+    submit.disabled = false;
+  }
+}
+
+async function removeTarget() {
+  const week = Number(targetForm().elements.plan_week.value);
+  try {
+    await targetsApi.remove(week);
+    state.targets.delete(week);
+    $('#target-dialog').close();
+    render();
+    toast(`Week ${week} target removed`);
+  } catch (err) {
+    if (isAuthError(err)) openPasscodeDialog('Enter your passcode, then try again.');
+    else $('[data-error-for="form"]', targetForm()).textContent = `Couldn’t remove: ${err.message}`;
+  }
+}
+
 // ---------- Passcode ----------
 
 function openPasscodeDialog(message) {
@@ -945,6 +1127,14 @@ function wireEvents() {
     renderChat();
     $('#chat-input').focus();
   });
+
+  targetForm().addEventListener('submit', saveTarget);
+  $('#target-week').addEventListener('change', () => {
+    clearTargetErrors();
+    syncTargetForm();
+  });
+  targetForm().elements.target_miles.addEventListener('input', clearTargetErrors);
+  $('#target-remove').addEventListener('click', removeTarget);
 
   $('#passcode-form').addEventListener('submit', (event) => {
     event.preventDefault();

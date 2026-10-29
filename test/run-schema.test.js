@@ -76,3 +76,11 @@ test('rejects bad input field by field', () => {
   assert.deepEqual(Object.keys(errors).sort(), ['duration_seconds', 'location', 'notes', 'run_date', 'run_type', 'temperature_f']);
   assert.ok(validateRun(null).errors);
 });
+
+test('validateTarget accepts a week and miles', async () => {
+  const { validateTarget } = await import('../public/js/run-schema.js');
+  assert.deepEqual(validateTarget({ plan_week: '3', target_miles: '20.256' }).value, { plan_week: 3, target_miles: 20.26 });
+  for (const bad of [{ plan_week: 0, target_miles: 20 }, { plan_week: 2.5, target_miles: 20 }, { plan_week: 3, target_miles: 0 }, { plan_week: 3, target_miles: '' }, { plan_week: 3, target_miles: 301 }]) {
+    assert.ok(validateTarget(bad).errors, JSON.stringify(bad));
+  }
+});

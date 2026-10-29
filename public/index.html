@@ -354,6 +354,34 @@
       </form>
     </dialog>
 
+    <!-- Weekly target -->
+    <dialog id="target-dialog" class="sheet small" aria-labelledby="target-title">
+      <form id="target-form" novalidate>
+        <header class="sheet-header">
+          <h2 id="target-title">Weekly target</h2>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
+        <div class="field">
+          <label for="target-week">Week</label>
+          <select id="target-week" name="plan_week"></select>
+          <span class="field-error" data-error-for="plan_week"></span>
+        </div>
+        <div class="field">
+          <label for="target-miles">Target (miles)</label>
+          <input id="target-miles" name="target_miles" type="number" inputmode="decimal" step="0.1" min="0" aria-describedby="target-hint" required />
+          <span class="field-error" data-error-for="target_miles"></span>
+        </div>
+        <p class="hint" id="target-hint"></p>
+        <p class="field-error" data-error-for="form" role="alert"></p>
+        <footer class="sheet-footer">
+          <button type="button" id="target-remove" class="btn danger" hidden>Remove</button>
+          <button type="submit" class="btn primary">Save target</button>
+        </footer>
+      </form>
+    </dialog>
+
     <!-- Passcode -->
     <dialog id="passcode-dialog" class="sheet small" aria-labelledby="passcode-title">
       <form id="passcode-form">

@@ -83,3 +83,27 @@ export async function deleteRun(env, id) {
   const rows = await rest(env, `runs?id=eq.${id}&select=id`, { method: 'DELETE' });
   return rows.length > 0;
 }
+
+// ---------- Weekly targets ----------
+
+const TARGET_COLUMNS = 'plan_week,target_miles,updated_at';
+
+export function listTargets(env) {
+  return rest(env, `week_targets?select=${TARGET_COLUMNS}&order=plan_week.asc`);
+}
+
+// Creates or replaces the target for one plan week.
+export async function upsertTarget(env, target) {
+  const rows = await rest(env, `week_targets?on_conflict=plan_week&select=${TARGET_COLUMNS}`, {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+    body: JSON.stringify({ ...target, updated_at: new Date().toISOString() }),
+  });
+  return rows[0];
+}
+
+// Returns true when a target was deleted.
+export async function deleteTarget(env, week) {
+  const rows = await rest(env, `week_targets?plan_week=eq.${week}&select=plan_week`, { method: 'DELETE' });
+  return rows.length > 0;
+}

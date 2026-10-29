@@ -184,6 +184,46 @@ test('removed routes are gone', async () => {
   assert.equal((await call('/api/runs/import', { method: 'POST', body: {} })).status, 404);
 });
 
+test('lists weekly targets', async () => {
+  respond = () => Response.json([{ plan_week: 2, target_miles: '20.00', updated_at: 'x' }]);
+  const res = await call('/api/targets');
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).targets[0].plan_week, 2);
+  assert.match(calls[0].url, /\/rest\/v1\/week_targets\?select=/);
+});
+
+test('sets a target with an upsert on the plan week', async () => {
+  respond = (url, init) => Response.json([JSON.parse(init.body)]);
+  const res = await call('/api/targets/3', { method: 'PUT', body: { target_miles: 22.5, plan_week: 99 } });
+  assert.equal(res.status, 200);
+  const sent = JSON.parse(calls[0].init.body);
+  assert.equal(sent.plan_week, 3); // the week in the URL wins
+  assert.equal(sent.target_miles, 22.5);
+  assert.match(calls[0].url, /on_conflict=plan_week/);
+  assert.match(calls[0].init.headers.Prefer, /resolution=merge-duplicates/);
+});
+
+test('rejects a bad target and needs the passcode', async () => {
+  assert.equal((await call('/api/targets/3', { method: 'PUT', body: { target_miles: 0 } })).status, 422);
+  assert.equal((await call('/api/targets/3', { method: 'PUT', body: { target_miles: 20 }, auth: null })).status, 401);
+  assert.equal((await call('/api/targets/abc', { method: 'PUT', body: { target_miles: 20 } })).status, 404);
+  assert.equal(calls.length, 0);
+});
+
+test('removes a target, 404 when there was none', async () => {
+  respond = () => Response.json([{ plan_week: 3 }]);
+  assert.equal((await call('/api/targets/3', { method: 'DELETE' })).status, 204);
+  respond = () => Response.json([]);
+  assert.equal((await call('/api/targets/4', { method: 'DELETE' })).status, 404);
+});
+
+test('a missing targets table comes back as a Supabase 404', async () => {
+  respond = () => new Response('{"code":"PGRST205"}', { status: 404 });
+  const res = await call('/api/targets');
+  assert.equal(res.status, 502);
+  assert.match((await res.json()).error, /Supabase request failed \(404\)/);
+});
+
 const chatEnv = { ...fullEnv, NVIDIA_API_KEY: ' nvapi-test ' };
 
 test('chat sends the request to NVIDIA with the right model and key', async () => {

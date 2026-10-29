@@ -1,14 +1,17 @@
 // Cloudflare Worker entry point. Static files in /public are served by the
 // assets binding; this handles the /api/* routes.
 
-import { validateRun } from '../public/js/run-schema.js';
+import { validateRun, validateTarget } from '../public/js/run-schema.js';
 import {
   createRun,
   deleteRun,
+  deleteTarget,
   isSupabaseConfigured,
   isValidId,
   listRuns,
+  listTargets,
   updateRun,
+  upsertTarget,
   UpstreamError,
 } from './supabase.js';
 import { chat, isNvidiaConfigured, parseChatRequest, TimeoutError } from './nvidia.js';
@@ -92,7 +95,8 @@ async function handleApi(request, env, url) {
     return json(body);
   }
 
-  if (pathname === '/api/runs' || pathname.startsWith('/api/runs/')) {
+  const isData = ['/api/runs', '/api/targets'].some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  if (isData) {
     if (!isSupabaseConfigured(env)) throw new HttpError(503, 'Supabase is not set up yet.');
     await requirePasscode(request, env);
   }
@@ -116,6 +120,25 @@ async function handleApi(request, env, url) {
     }
     if (method === 'DELETE') {
       if (!(await deleteRun(env, id))) throw new HttpError(404, 'Run not found.');
+      return new Response(null, { status: 204 });
+    }
+  }
+
+  // Weekly mileage targets, one per plan week.
+  if (pathname === '/api/targets' && method === 'GET') {
+    return json({ targets: await listTargets(env) });
+  }
+  const targetMatch = pathname.match(/^\/api\/targets\/(\d{1,2})$/);
+  if (targetMatch) {
+    const week = Number(targetMatch[1]);
+    if (method === 'PUT') {
+      const body = await readJson(request);
+      const { value, errors } = validateTarget({ ...body, plan_week: week });
+      if (errors) throw new HttpError(422, 'Some fields need fixing.', errors);
+      return json({ target: await upsertTarget(env, value) });
+    }
+    if (method === 'DELETE') {
+      if (!(await deleteTarget(env, week))) throw new HttpError(404, 'No target for that week.');
       return new Response(null, { status: 204 });
     }
   }

@@ -62,3 +62,10 @@ export const runsApi = {
   update: async (id, run) => (await api(`/api/runs/${encodeURIComponent(id)}`, { method: 'PATCH', body: run })).run,
   remove: (id) => api(`/api/runs/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 };
+
+// Weekly mileage targets, one per plan week.
+export const targetsApi = {
+  list: async () => (await api('/api/targets')).targets,
+  set: async (week, targetMiles) => (await api(`/api/targets/${week}`, { method: 'PUT', body: { target_miles: targetMiles } })).target,
+  remove: (week) => api(`/api/targets/${week}`, { method: 'DELETE' }),
+};

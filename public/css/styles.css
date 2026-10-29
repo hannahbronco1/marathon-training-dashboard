@@ -494,13 +494,50 @@ body.needs-setup .add-btn {
   text-decoration: none;
 }
 
-a.week-chip:hover {
-  border-color: var(--border-strong);
+/* Hover only where there's a mouse; on phones a tap leaves :hover stuck. */
+@media (hover: hover) {
+  a.week-chip:not(.is-now):hover {
+    border-color: var(--border-strong);
+  }
+
+  button.week-chip:hover {
+    border-color: var(--text-2);
+  }
 }
 
 .week-chip.is-now {
   border: 2px solid var(--accent);
   padding: 11px;
+}
+
+button.week-chip {
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chip-value small {
+  margin-left: 1px;
+  font-size: 0.55em;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+/* Progress toward the week's target. */
+.chip-meter {
+  display: block;
+  height: 4px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.chip-meter span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
 }
 
 .week-chip.is-future {
@@ -720,6 +757,12 @@ a.week-chip:hover {
 
 .chart-bar {
   fill: var(--accent);
+}
+
+.chart-target {
+  stroke: var(--text);
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 
 .chart-line {
@@ -1214,6 +1257,34 @@ th[aria-sort='descending'] {
 
 .week {
   scroll-margin-top: 84px; /* clear the sticky header when jumped to */
+}
+
+.week-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.week-target-btn {
+  padding: 0;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.week-target {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--accent);
+  margin-top: 2px;
+}
+
+#weeks-meta .link-btn {
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
 }
 
 .week.is-now {

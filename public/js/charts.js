@@ -11,6 +11,9 @@
 //   yInvert:     smaller values at the top (e.g. faster paces)
 //   ariaLabel
 //
+// Column charts can give points a `target`, drawn as a short line across
+// the bar's slot.
+//
 // Line charts on a time scale also take:
 //   xDomain:     [min, max] in the same units as each point's `x` (e.g. ms)
 //   xTicks:      [{ x, label }] axis labels; crowded ones are dropped
@@ -172,7 +175,8 @@ function draw(host) {
     return;
   }
 
-  const ticks = niceTicks(yZero ? 0 : Math.min(...values), Math.max(...values), 4, spec.yTime);
+  const targets = points.map((p) => p.target).filter((t) => Number.isFinite(t));
+  const ticks = niceTicks(yZero ? 0 : Math.min(...values), Math.max(...values, ...targets), 4, spec.yTime);
   const yMin = ticks[0];
   const yMax = ticks[ticks.length - 1];
   const tickLabels = ticks.map(yFormat);
@@ -225,6 +229,13 @@ function draw(host) {
       if (!p.value) return;
       const y = yScale(p.value);
       svgEl('path', { d: roundedTopBar(xs[i] - barW / 2, y, barW, base), class: 'chart-bar' }, marks);
+    });
+    // Targets: a short line across each slot that has one.
+    points.forEach((p, i) => {
+      if (!Number.isFinite(p.target)) return;
+      const y = Math.round(yScale(p.target)) + 0.5;
+      const half = Math.min(band / 2 - 1, barW / 2 + 5);
+      svgEl('line', { x1: xs[i] - half, x2: xs[i] + half, y1: y, y2: y, class: 'chart-target' }, marks);
     });
     // Direct label on the latest column only; the tooltip and table carry the rest.
     if (lastIndex >= 0 && points[lastIndex].value) {

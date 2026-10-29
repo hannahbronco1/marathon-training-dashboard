@@ -24,6 +24,7 @@ export const LIMITS = {
   maxConditions: 200,
   maxFood: 1000,
   maxNotes: 5000,
+  maxWeeklyTarget: 300,
 };
 
 const RUN_TYPE_VALUES = new Set(RUN_TYPES.map((t) => t.value));
@@ -125,4 +126,20 @@ export function validateRun(input) {
       notes,
     },
   };
+}
+
+// A weekly mileage target the runner sets for one plan week. Returns
+// { value } or { errors } like validateRun. The site never suggests one.
+export function validateTarget(input) {
+  const errors = {};
+  const src = input && typeof input === 'object' ? input : {};
+
+  const week = wholeNumber(src.plan_week);
+  if (!(week >= 1 && week <= LIMITS.maxWeek)) errors.plan_week = 'Pick a plan week.';
+
+  const miles = isBlank(src.target_miles) ? NaN : Number(src.target_miles);
+  if (!(miles > 0 && miles <= LIMITS.maxWeeklyTarget)) errors.target_miles = 'Enter a target of more than 0 miles.';
+
+  if (Object.keys(errors).length) return { errors };
+  return { value: { plan_week: week, target_miles: Math.round(miles * 100) / 100 } };
 }
