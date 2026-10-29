@@ -1,0 +1,61 @@
+// Tiny in-memory stand-in for Supabase's REST API: just the `runs` calls
+// the Worker makes. For local testing when the real Supabase isn't reachable.
+//
+//   node .claude/skills/ship-it/scripts/mock-supabase.mjs        (port 54321)
+//
+// Pair it with a .dev.vars that points the Worker here:
+//   SUPABASE_URL=http://127.0.0.1:54321
+//   SUPABASE_SERVICE_ROLE_KEY=test-service-key
+//   APP_PASSCODE=<anything>
+//
+// Data lives in memory and is gone when the process stops.
+
+import http from 'node:http';
+import { randomUUID } from 'node:crypto';
+
+const PORT = Number(process.env.PORT ?? 54321);
+const KEY = 'test-service-key';
+const rows = [];
+
+function send(res, status, body) {
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(body));
+}
+
+http
+  .createServer(async (req, res) => {
+    const url = new URL(req.url, 'http://localhost');
+    if (req.headers.apikey !== KEY) return send(res, 401, { message: 'Invalid API key' });
+    if (url.pathname !== '/rest/v1/runs') return send(res, 404, { message: 'Not found' });
+
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    const id = url.searchParams.get('id')?.replace(/^eq\./, '');
+    const now = new Date().toISOString();
+
+    if (req.method === 'GET') {
+      const sorted = [...rows].sort((a, b) => b.run_date.localeCompare(a.run_date) || b.plan_day - a.plan_day);
+      return send(res, 200, sorted);
+    }
+    if (req.method === 'POST') {
+      const input = JSON.parse(body);
+      // Supabase returns numeric columns as strings; mimic that.
+      const row = { id: randomUUID(), ...input, miles: String(input.miles), created_at: now, updated_at: now };
+      rows.push(row);
+      return send(res, 201, [row]);
+    }
+
+    const index = rows.findIndex((r) => r.id === id);
+    if (req.method === 'PATCH') {
+      if (index < 0) return send(res, 200, []);
+      Object.assign(rows[index], JSON.parse(body));
+      return send(res, 200, [rows[index]]);
+    }
+    if (req.method === 'DELETE') {
+      if (index < 0) return send(res, 200, []);
+      const [removed] = rows.splice(index, 1);
+      return send(res, 200, [{ id: removed.id }]);
+    }
+    send(res, 405, { message: 'Method not allowed' });
+  })
+  .listen(PORT, '127.0.0.1', () => console.log(`mock Supabase on http://127.0.0.1:${PORT}`));
