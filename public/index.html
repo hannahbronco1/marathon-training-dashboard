@@ -61,54 +61,51 @@
         </div>
 
         <div id="dashboard-content" class="stack">
-          <section aria-labelledby="hero-title">
-            <div class="section-head">
-              <h2 id="hero-title">This week</h2>
-              <span class="mono-meta" id="hero-range"></span>
+          <!-- Plan totals -->
+          <dl class="stat-tiles" aria-label="Plan so far">
+            <div class="stat"><dt>Total mi</dt><dd id="tile-total"></dd></div>
+            <div class="stat">
+              <dt>Longest mi</dt>
+              <dd><button type="button" class="stat-link" id="tile-longest" aria-describedby="tile-longest-date"></button></dd>
+              <dd class="stat-note" id="tile-longest-date"></dd>
             </div>
-            <dl class="stat-tiles">
-              <div class="stat"><dt>Week mi</dt><dd id="tile-miles"></dd></div>
-              <div class="stat"><dt>Longest mi</dt><dd id="tile-longest"></dd></div>
-              <div class="stat"><dt>Avg /mi</dt><dd id="tile-pace"></dd></div>
-            </dl>
+            <div class="stat"><dt>Avg /mi</dt><dd id="tile-pace"></dd></div>
+          </dl>
+
+          <!-- Weeks strip -->
+          <section aria-labelledby="weeks-title">
+            <div class="section-head">
+              <h2 id="weeks-title">Weeks</h2>
+              <span class="mono-meta" id="weeks-meta"></span>
+            </div>
+            <ol class="weeks-strip" id="weeks-strip" aria-label="Plan weeks"></ol>
             <p class="delta" id="hero-delta"></p>
           </section>
 
-          <figure class="card chart-card" id="chart-weekly">
+          <figure class="card chart-card" id="chart-total">
             <figcaption>
-              <h2>Weekly miles</h2>
-              <p class="sub">Miles per plan week</p>
+              <h2>Miles over time</h2>
             </figcaption>
             <div class="chart-plot"></div>
+            <p class="sub chart-caption">Running total of logged miles. The dashed line carries it to today.</p>
             <details class="chart-table">
               <summary>Show as table</summary>
               <div class="table-wrap"></div>
             </details>
           </figure>
 
-          <figure class="card chart-card" id="chart-long">
+          <figure class="card chart-card" id="chart-temp">
             <figcaption>
-              <h2>Long run</h2>
-              <p class="sub">Longest run each week, miles</p>
+              <h2>Temperature vs. pace</h2>
             </figcaption>
             <div class="chart-plot"></div>
+            <p class="sub chart-caption">Pace per mile (faster at top) by temperature. Dot size = distance.</p>
             <details class="chart-table">
               <summary>Show as table</summary>
               <div class="table-wrap"></div>
             </details>
           </figure>
 
-          <figure class="card chart-card" id="chart-pace">
-            <figcaption>
-              <h2>Pace</h2>
-              <p class="sub">Average pace each week, /mi · lower is faster</p>
-            </figcaption>
-            <div class="chart-plot"></div>
-            <details class="chart-table">
-              <summary>Show as table</summary>
-              <div class="table-wrap"></div>
-            </details>
-          </figure>
         </div>
       </section>
 
@@ -162,6 +159,43 @@
       <section id="view-weekly" class="view" aria-labelledby="weekly-title" hidden>
         <h2 class="view-title" id="weekly-title">Weekly summaries</h2>
         <p id="weekly-empty" class="empty-text" hidden>Each plan week gets a summary once you add a run.</p>
+        <div id="weekly-charts" class="stack">
+            <figure class="card chart-card" id="chart-weekly">
+              <figcaption>
+                <h2>Weekly miles</h2>
+                <p class="sub">Miles per plan week</p>
+              </figcaption>
+              <div class="chart-plot"></div>
+              <details class="chart-table">
+                <summary>Show as table</summary>
+                <div class="table-wrap"></div>
+              </details>
+            </figure>
+
+            <figure class="card chart-card" id="chart-long">
+              <figcaption>
+                <h2>Long run</h2>
+                <p class="sub">Longest run each week, miles</p>
+              </figcaption>
+              <div class="chart-plot"></div>
+              <details class="chart-table">
+                <summary>Show as table</summary>
+                <div class="table-wrap"></div>
+              </details>
+            </figure>
+
+            <figure class="card chart-card" id="chart-pace">
+              <figcaption>
+                <h2>Pace</h2>
+                <p class="sub">Average pace each week, /mi · lower is faster</p>
+              </figcaption>
+              <div class="chart-plot"></div>
+              <details class="chart-table">
+                <summary>Show as table</summary>
+                <div class="table-wrap"></div>
+              </details>
+            </figure>
+        </div>
         <ol id="weeks" class="weeks"></ol>
       </section>
 

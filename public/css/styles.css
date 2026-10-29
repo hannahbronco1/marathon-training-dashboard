@@ -171,6 +171,13 @@ main {
   gap: 16px;
 }
 
+/* Let grid children shrink, so wide content (the weeks strip, the run log)
+   scrolls inside its own box instead of widening the page. */
+.view > *,
+.stack > * {
+  min-width: 0;
+}
+
 .stack-tight {
   display: grid;
   gap: 6px;
@@ -361,8 +368,7 @@ body.needs-setup .add-btn {
 /* Label comes first in the markup; the value sits on top visually. */
 .stat {
   display: flex;
-  flex-direction: column-reverse;
-  justify-content: flex-end;
+  flex-direction: column;
   gap: 4px;
   min-width: 0;
   padding: 14px 12px;
@@ -378,6 +384,33 @@ body.needs-setup .add-btn {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.stat dt {
+  order: 2;
+}
+
+.stat .stat-note {
+  order: 3;
+  font-size: 0.6875rem;
+  font-weight: 400;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-2);
+}
+
+/* The longest-run value opens that run. */
+.stat-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 5px;
+  cursor: pointer;
 }
 
 .stat dt,
@@ -419,6 +452,87 @@ body.needs-setup .add-btn {
   .tiles {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* ---------- Weeks strip ---------- */
+
+.weeks-strip {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 2px var(--gutter) 6px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: var(--gutter);
+  scrollbar-width: none;
+}
+
+.weeks-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.weeks-strip li {
+  flex: none;
+  scroll-snap-align: start;
+}
+
+.week-chip {
+  display: grid;
+  gap: 2px;
+  width: 104px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+}
+
+a.week-chip:hover {
+  border-color: var(--border-strong);
+}
+
+.week-chip.is-now {
+  border: 2px solid var(--accent);
+  padding: 11px;
+}
+
+.week-chip.is-future {
+  border-style: dashed;
+  border-color: var(--border-strong);
+  background: transparent;
+}
+
+.chip-code {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.is-now .chip-code {
+  color: var(--accent);
+}
+
+.chip-value {
+  font-family: var(--font-mono);
+  font-size: 1.375rem;
+  font-weight: 700;
+}
+
+.is-future .chip-value {
+  color: var(--muted);
+}
+
+.chip-sub {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-2);
+  white-space: nowrap;
 }
 
 /* ---------- Buttons & chips ---------- */
@@ -550,6 +664,10 @@ body.needs-setup .add-btn {
   font-size: 0.8125rem;
 }
 
+.chart-caption {
+  margin-top: -2px;
+}
+
 .chart-plot {
   position: relative;
   height: 208px;
@@ -583,6 +701,13 @@ body.needs-setup .add-btn {
   font-weight: 700;
 }
 
+.chart-value-halo {
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
 .chart-empty {
   fill: var(--text-2);
   font-size: 14px;
@@ -598,6 +723,24 @@ body.needs-setup .add-btn {
   stroke-width: 2;
   stroke-linejoin: round;
   stroke-linecap: round;
+}
+
+/* Dashed: the running total carried forward to today. */
+.chart-line-carry {
+  stroke-dasharray: 5 5;
+}
+
+/* Scatter dots, with a surface ring so overlapping dots stay distinct. */
+.chart-dot-solid {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.chart-dot-ring {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 2;
 }
 
 /* Hollow markers, like the race-bib design. */
@@ -1062,6 +1205,10 @@ th[aria-sort='descending'] {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-2);
+}
+
+.week {
+  scroll-margin-top: 84px; /* clear the sticky header when jumped to */
 }
 
 .week.is-now {

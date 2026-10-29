@@ -204,3 +204,32 @@ export function percentChange(current, previous) {
   if (!previous) return null;
   return (current - previous) / previous;
 }
+
+// Totals across every logged run, plus the longest run itself.
+export function planTotals(runs) {
+  let miles = 0;
+  let durationSeconds = 0;
+  let longest = null;
+  for (const run of runs) {
+    const m = Number(run.miles);
+    miles += m;
+    durationSeconds += run.duration_seconds;
+    if (!longest || m > Number(longest.miles) || (m === Number(longest.miles) && run.run_date < longest.run_date)) {
+      longest = run;
+    }
+  }
+  return { miles, durationSeconds, runCount: runs.length, longest };
+}
+
+// Running total of miles, one entry per date that has runs, oldest first.
+export function cumulativeMiles(runs) {
+  const byDate = new Map();
+  for (const run of runs) byDate.set(run.run_date, (byDate.get(run.run_date) ?? 0) + Number(run.miles));
+  let total = 0;
+  return [...byDate.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, dayMiles]) => {
+      total += dayMiles;
+      return { date, dayMiles: Math.round(dayMiles * 100) / 100, total: Math.round(total * 100) / 100 };
+    });
+}

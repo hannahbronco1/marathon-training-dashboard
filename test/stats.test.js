@@ -75,3 +75,32 @@ test('race countdown and bib formatting', () => {
   assert.equal(S.shortMiles('6.00'), '6');
   assert.equal(S.shortMiles(3.25), '3.25');
 });
+
+test('planTotals adds up every run and finds the longest', () => {
+  const runs = [
+    { run_date: '2026-10-20', miles: 3.2, duration_seconds: 2304 },
+    { run_date: '2026-10-25', miles: '10.7', duration_seconds: 7335 },
+    { run_date: '2026-10-27', miles: 10.7, duration_seconds: 7000 },
+  ];
+  const totals = S.planTotals(runs);
+  assert.equal(Math.round(totals.miles * 100) / 100, 24.6);
+  assert.equal(totals.durationSeconds, 16639);
+  assert.equal(totals.runCount, 3);
+  assert.equal(totals.longest.run_date, '2026-10-25'); // ties go to the first time you ran it
+  assert.deepEqual(S.planTotals([]), { miles: 0, durationSeconds: 0, runCount: 0, longest: null });
+});
+
+test('cumulativeMiles builds a running total by date', () => {
+  const runs = [
+    { run_date: '2026-10-25', miles: 10.7 },
+    { run_date: '2026-10-20', miles: 3.2 },
+    { run_date: '2026-10-25', miles: 1.1 },
+    { run_date: '2026-10-22', miles: '2.9' },
+  ];
+  assert.deepEqual(S.cumulativeMiles(runs), [
+    { date: '2026-10-20', dayMiles: 3.2, total: 3.2 },
+    { date: '2026-10-22', dayMiles: 2.9, total: 6.1 },
+    { date: '2026-10-25', dayMiles: 11.8, total: 17.9 },
+  ]);
+  assert.deepEqual(S.cumulativeMiles([]), []);
+});

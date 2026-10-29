@@ -35,6 +35,7 @@ const state = {
   sort: prefs.sort?.key ? prefs.sort : { key: 'date', dir: 'desc' },
   showJournal: prefs.showJournal === true,
   filters: { week: '', type: '', location: '' },
+  scrollToWeek: null,
 };
 
 // Builds an element. Children may be strings (inserted as text) or nodes.
@@ -125,23 +126,161 @@ function renderDashboard() {
   $('#dashboard-content').hidden = !hasRuns;
   if (!hasRuns) return;
 
-  const weeks = S.summarizeWeeks(state.runs, S.currentPlanWeek(state.runs));
-  const thisWeek = weeks.at(-1);
-  const lastWeek = weeks.at(-2);
-  const isToday = thisWeek.week === S.planWeekFor(S.todayISO());
+  // Plan totals.
+  const totals = S.planTotals(state.runs);
+  $('#tile-total').textContent = totals.miles.toFixed(1);
+  $('#tile-pace').textContent = S.formatPace(S.paceSeconds(totals.durationSeconds, totals.miles), false);
+  const longest = totals.longest;
+  const longestButton = $('#tile-longest');
+  longestButton.textContent = Number(longest.miles).toFixed(1);
+  longestButton.setAttribute('aria-label', `Longest run: ${S.formatMiles(longest.miles)} on ${S.formatLongDate(longest.run_date)}. Open it.`);
+  longestButton.onclick = () => openRunDialog(longest);
+  $('#tile-longest-date').textContent = S.formatShortDate(longest.run_date);
 
-  $('#hero-title').textContent = isToday ? 'This week' : `Week ${thisWeek.week}`;
-  $('#hero-range').textContent = `${S.weekCode(thisWeek.week)} · ${S.formatWeekRange(thisWeek.week)}`;
-  $('#tile-miles').textContent = thisWeek.miles.toFixed(1);
-  $('#tile-longest').textContent = thisWeek.runCount ? thisWeek.longestMiles.toFixed(1) : '--';
-  $('#tile-pace').textContent = thisWeek.runCount ? S.formatPace(weekPace(thisWeek), false) : '--';
+  renderWeeksStrip();
+  renderMilesOverTime();
+  renderTempVsPace();
+}
+
+// One card per plan week, Week 1 to race week. Future weeks are dashed.
+function renderWeeksStrip() {
+  const { totalWeeks } = S.raceCountdown();
+  const todayWeek = S.planWeekFor(S.todayISO());
+  const weeks = S.summarizeWeeks(state.runs, Math.max(totalWeeks, S.currentPlanWeek(state.runs)));
+
+  $('#weeks-strip').replaceChildren(
+    ...weeks.map((w) => {
+      const isNow = w.week === todayWeek;
+      const isFuture = !w.runCount && (todayWeek === null || w.week > todayWeek);
+      const code = h('span', { class: 'chip-code' }, S.weekCode(w.week), isNow && ' · Now');
+      if (isFuture) {
+        const when = w.week === totalWeeks ? 'Race week' : S.formatShortDate(S.planWeekStart(w.week));
+        return h(
+          'li',
+          {},
+          h('div', { class: 'week-chip is-future', 'aria-label': `Week ${w.week}, starts ${S.formatLongDate(S.planWeekStart(w.week))}` }, code, h('span', { class: 'chip-value' }, '--'), h('span', { class: 'chip-sub' }, when)),
+        );
+      }
+      return h(
+        'li',
+        {},
+        h(
+          'a',
+          {
+            href: '#weekly',
+            class: `week-chip${isNow ? ' is-now' : ''}`,
+            'aria-label': `Week ${w.week}, ${S.formatWeekRange(w.week)}: ${w.miles.toFixed(1)} miles, ${plural(w.runCount, 'run')}${isNow ? ', this week' : ''}. Open weekly summary.`,
+            onclick: () => (state.scrollToWeek = w.week),
+          },
+          code,
+          h('span', { class: 'chip-value' }, w.miles.toFixed(1)),
+          h('span', { class: 'chip-sub' }, plural(w.runCount, 'run')),
+        ),
+      );
+    }),
+  );
+
+  // A line about the current week under the strip.
+  const upTo = S.summarizeWeeks(state.runs, S.currentPlanWeek(state.runs));
+  const thisWeek = upTo.at(-1);
+  const lastWeek = upTo.at(-2);
   const comparison = !lastWeek
     ? 'Week 1 of your plan'
     : thisWeek.miles
       ? deltaText(thisWeek.miles, lastWeek.miles, 'last week')
       : `Last week: ${S.formatMiles(lastWeek.miles, 1)}`;
-  $('#hero-delta').textContent = [plural(thisWeek.runCount, 'run'), S.formatHours(thisWeek.durationSeconds), comparison].join(' · ');
+  const parts = [plural(thisWeek.runCount, 'run'), S.formatHours(thisWeek.durationSeconds)];
+  if (thisWeek.runCount) parts.push(S.formatPace(weekPace(thisWeek)));
+  parts.push(comparison);
+  $('#hero-delta').textContent = `${thisWeek.week === todayWeek ? 'This week' : `Week ${thisWeek.week}`}: ${parts.join(' · ')}`;
+  scrollStripToNow();
+}
 
+// Brings the current week's card into view without moving the page.
+function scrollStripToNow() {
+  const strip = $('#weeks-strip');
+  const now = $('.week-chip.is-now', strip)?.parentElement;
+  if (!strip.clientWidth || !now) return;
+  strip.scrollLeft = Math.max(0, now.offsetLeft - strip.offsetLeft - (strip.clientWidth - now.offsetWidth) / 2);
+}
+
+function renderMilesOverTime() {
+  const series = S.cumulativeMiles(state.runs);
+  const time = (iso) => S.parseDate(iso).getTime();
+  const today = S.todayISO();
+  const first = series[0].date;
+  const last = series.at(-1).date;
+  const end = today > last ? today : last;
+
+  const ticks = [{ x: time(first), label: S.formatShortDate(first) }];
+  if (last !== first) ticks.push({ x: time(last), label: S.formatShortDate(last) });
+  if (end === today && today !== last) ticks.push({ x: time(today), label: 'Today' });
+
+  renderChartCard(
+    'chart-total',
+    {
+      kind: 'line',
+      ariaLabel: 'Running total of miles since your first run',
+      yFormat: compactNumber,
+      valueFormat: (v) => v.toFixed(1),
+      xDomain: [time(first), time(end)],
+      xTicks: ticks,
+      carryTo: end === today ? time(today) : null,
+      points: series.map((p) => ({
+        x: time(p.date),
+        label: S.formatShortDate(p.date),
+        value: p.total,
+        tooltip: { value: `${S.shortMiles(p.total)} mi total`, title: S.formatLongDate(p.date), detail: `+${S.shortMiles(p.dayMiles)} mi that day` },
+      })),
+    },
+    {
+      headers: ['Date', 'Miles that day', 'Running total'],
+      rows: [...series].reverse().map((p) => [S.formatShortDate(p.date), p.dayMiles.toFixed(2), p.total.toFixed(2)]),
+    },
+  );
+}
+
+function renderTempVsPace() {
+  const runs = S.sortRunsDesc(state.runs);
+  const maxMiles = Math.max(...runs.map((r) => Number(r.miles)));
+  const { longest } = S.planTotals(runs);
+  // With a handful of runs every dot gets a label, as in the design; after
+  // that only the longest does, and the tooltip and table carry the rest.
+  const labelAll = runs.length <= 5;
+
+  renderChartCard(
+    'chart-temp',
+    {
+      kind: 'scatter',
+      ariaLabel: 'Pace of each run by temperature; bigger dots are longer runs',
+      yZero: false,
+      yTime: true,
+      yInvert: true,
+      yFormat: paceTick,
+      xFormat: (v) => `${v}°`,
+      xIntegers: true,
+      points: runs.map((r) => ({
+        x: Number(r.temperature_f),
+        value: runPace(r),
+        size: Number(r.miles) / maxMiles,
+        directLabel: labelAll || r === longest ? `${S.shortMiles(r.miles)} mi` : null,
+        label: S.formatShortDate(r.run_date),
+        tooltip: {
+          value: S.formatPace(runPace(r)),
+          title: `${S.formatLongDate(r.run_date)} · ${runTypeLabel(r.run_type)}`,
+          detail: `${S.shortMiles(r.miles)} mi · ${[S.formatTemperature(r.temperature_f), r.conditions].filter(Boolean).join(' ')}`,
+        },
+      })),
+    },
+    {
+      headers: ['Date', '°F', 'Pace (/mi)', 'Miles'],
+      rows: runs.map((r) => [S.formatShortDate(r.run_date), Number(r.temperature_f), paceTick(runPace(r)), Number(r.miles).toFixed(2)]),
+    },
+  );
+}
+
+// The week-by-week charts at the top of the Weekly tab.
+function renderWeeklyCharts(weeks) {
   const label = (w) => S.weekCode(w.week);
   const newestFirst = [...weeks].reverse();
 
@@ -421,6 +560,8 @@ function updateScrollHint() {
 function renderWeekly() {
   const weeks = state.runs.length ? S.summarizeWeeks(state.runs, S.currentPlanWeek(state.runs)) : [];
   $('#weekly-empty').hidden = weeks.length > 0;
+  $('#weekly-charts').hidden = weeks.length === 0;
+  if (weeks.length) renderWeeklyCharts(weeks);
   const peak = Math.max(0, ...weeks.map((w) => w.miles));
   const todayWeek = S.planWeekFor(S.todayISO());
 
@@ -436,12 +577,12 @@ function renderWeekly() {
           isNow && h('span', { class: 'tag tag-filled' }, 'Now'),
         );
         if (!week.runCount) {
-          return h('li', { class: `week week-empty${isNow ? ' is-now' : ''}` }, title, h('span', { class: 'sub' }, 'No runs'));
+          return h('li', { id: `week-${week.week}`, class: `week week-empty${isNow ? ' is-now' : ''}` }, title, h('span', { class: 'sub' }, 'No runs'));
         }
         const share = peak ? (week.miles / peak) * 100 : 0;
         return h(
           'li',
-          { class: `week card${isNow ? ' is-now' : ''}` },
+          { id: `week-${week.week}`, class: `week card${isNow ? ' is-now' : ''}` },
           title,
           h('p', { class: 'week-distance' }, S.shortMiles(week.miles), h('small', {}, ' mi')),
           previous && h('p', { class: 'delta' }, deltaText(week.miles, previous.miles, 'the previous week')),
@@ -485,6 +626,12 @@ function route() {
   }
   window.scrollTo(0, 0);
   updateScrollHint();
+  if (view === 'dashboard') scrollStripToNow();
+  // Tapping a week in the dashboard strip opens its weekly summary.
+  if (view === 'weekly' && state.scrollToWeek) {
+    document.getElementById(`week-${state.scrollToWeek}`)?.scrollIntoView({ block: 'start' });
+  }
+  state.scrollToWeek = null;
 }
 
 async function loadRuns() {
