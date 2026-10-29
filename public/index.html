@@ -164,6 +164,23 @@
         <p id="weekly-empty" class="empty-text" hidden>Each plan week gets a summary once you add a run.</p>
         <ol id="weeks" class="weeks"></ol>
       </section>
+
+      <!-- AI chat (test) -->
+      <section id="view-chat" class="view chat" aria-labelledby="chat-title" hidden>
+        <div class="section-head">
+          <h2 class="view-title" id="chat-title">Chat</h2>
+          <button type="button" id="chat-clear" class="link-btn" hidden>New chat</button>
+        </div>
+        <p class="sub">Test chat with NVIDIA Nemotron 3.5 Lightning. It can’t see your runs, food or notes.</p>
+        <p id="chat-off" class="card chat-off" hidden>Chat is off. Add your NVIDIA key in Cloudflare as a secret named <code>NVIDIA_API_KEY</code>, then reload.</p>
+        <ol id="chat-log" class="chat-log" aria-live="polite" aria-label="Conversation"></ol>
+        <form id="chat-form" class="chat-form">
+          <label class="visually-hidden" for="chat-input">Message</label>
+          <textarea id="chat-input" name="message" rows="2" maxlength="16000" placeholder="Type a message…" required></textarea>
+          <button type="submit" class="btn primary">Send</button>
+        </form>
+        <p class="field-error" id="chat-error" role="alert"></p>
+      </section>
     </main>
 
     <nav class="tabbar" aria-label="Sections">
@@ -182,6 +199,10 @@
       <a href="#weekly" class="tab" data-view="weekly">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v16H3zM3 10h18M8 3v4M16 3v4" /></svg>
         <span>Weekly</span>
+      </a>
+      <a href="#chat" class="tab" data-view="chat">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>
+        <span>Chat</span>
       </a>
     </nav>
 

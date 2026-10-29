@@ -51,6 +51,11 @@ export function fetchConfig() {
   return api('/api/config');
 }
 
+// Sends the conversation so far; returns { reply, finish_reason, model, usage }.
+export function sendChat(messages) {
+  return api('/api/chat', { method: 'POST', body: { messages } });
+}
+
 export const runsApi = {
   list: async () => (await api('/api/runs')).runs,
   create: async (run) => (await api('/api/runs', { method: 'POST', body: run })).run,

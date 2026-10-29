@@ -2,7 +2,7 @@
 
 A phone-friendly dashboard for training for the ASICS Los Angeles Marathon (March 7, 2027). Log each run, then follow your progress in a sortable run log, a timeline, weekly summaries and charts.
 
-It runs on **Cloudflare Workers** (static files plus a small API) and saves runs in **Supabase**. An optional `/api/chat` route sends chat requests to an NVIDIA-hosted model.
+It runs on **Cloudflare Workers** (static files plus a small API) and saves runs in **Supabase**. An optional **Chat** tab (and `/api/chat` route) sends chat messages to an NVIDIA-hosted model; it only sees what you type in it.
 
 ## What's in each run
 

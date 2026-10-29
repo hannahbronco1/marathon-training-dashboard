@@ -1,10 +1,11 @@
-import { ApiError, fetchConfig, passcode, runsApi } from './store.js';
+import { ApiError, fetchConfig, passcode, runsApi, sendChat } from './store.js';
 import { renderChart } from './charts.js';
 import { LOCATIONS, RUN_TYPES, locationLabel, runTypeLabel, validateRun } from './run-schema.js';
 import { PLAN } from './plan.js';
 import * as S from './stats.js';
 
-const VIEWS = ['dashboard', 'timeline', 'runs', 'weekly'];
+const VIEWS = ['dashboard', 'timeline', 'runs', 'weekly', 'chat'];
+const MAX_CHAT_MESSAGES = 40; // the server's limit
 const PREFS_KEY = 'mtd.prefs';
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -665,6 +666,56 @@ function openPasscodeDialog(message) {
 
 // ---------- Setup ----------
 
+// ---------- Chat (test) ----------
+
+// The conversation lives only in this page; reloading starts fresh.
+const chatState = { messages: [], sending: false };
+
+function chatBubble(role, text, extraClass = '') {
+  return h(
+    'li',
+    { class: `bubble bubble-${role} ${extraClass}`.trim() },
+    h('span', { class: 'bubble-who' }, role === 'user' ? 'You' : 'Nemotron'),
+    h('p', { class: 'bubble-text' }, text),
+  );
+}
+
+function renderChat() {
+  const log = $('#chat-log');
+  log.replaceChildren(...chatState.messages.map((m) => chatBubble(m.role, m.content)));
+  if (chatState.sending) log.append(chatBubble('assistant', 'Thinking…', 'is-pending'));
+  $('#chat-clear').hidden = chatState.messages.length === 0 || chatState.sending;
+  $('#chat-form button').disabled = chatState.sending;
+  log.lastElementChild?.scrollIntoView({ block: 'nearest' });
+}
+
+async function sendChatMessage(event) {
+  event.preventDefault();
+  const input = $('#chat-input');
+  const text = input.value;
+  if (!text.trim() || chatState.sending) return;
+
+  $('#chat-error').textContent = '';
+  chatState.messages.push({ role: 'user', content: text });
+  chatState.sending = true;
+  input.value = '';
+  renderChat();
+  try {
+    const { reply, finish_reason } = await sendChat(chatState.messages.slice(-MAX_CHAT_MESSAGES));
+    const content = reply || (finish_reason === 'length' ? '(The reply ran out of room before finishing.)' : '(No reply.)');
+    chatState.messages.push({ role: 'assistant', content });
+  } catch (err) {
+    // Put the message back so it can be sent again.
+    chatState.messages.pop();
+    input.value = text;
+    if (isAuthError(err)) openPasscodeDialog('Enter your passcode, then send again.');
+    else $('#chat-error').textContent = err.message;
+  } finally {
+    chatState.sending = false;
+    renderChat();
+  }
+}
+
 function wireEvents() {
   window.addEventListener('hashchange', route);
   for (const el of $$('[data-open-log]')) el.addEventListener('click', () => openRunDialog());
@@ -707,6 +758,18 @@ function wireEvents() {
     renderLog();
   });
 
+  $('#chat-form').addEventListener('submit', sendChatMessage);
+  // Ctrl/Cmd + Enter sends; Enter alone adds a new line.
+  $('#chat-input').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) $('#chat-form').requestSubmit();
+  });
+  $('#chat-clear').addEventListener('click', () => {
+    chatState.messages = [];
+    $('#chat-error').textContent = '';
+    renderChat();
+    $('#chat-input').focus();
+  });
+
   $('#passcode-form').addEventListener('submit', (event) => {
     event.preventDefault();
     passcode.set($('#passcode-input').value);
@@ -743,6 +806,7 @@ async function init() {
     showSetup(config.missing ?? []);
     return;
   }
+  $('#chat-off').hidden = config.chat !== false;
   await loadRuns();
 }
 

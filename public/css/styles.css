@@ -1102,6 +1102,80 @@ th[aria-sort='descending'] {
   background: var(--accent);
 }
 
+/* ---------- Chat ---------- */
+
+.chat .section-head {
+  margin-bottom: 0;
+}
+
+.chat-off code {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+.chat-log {
+  display: grid;
+  gap: 12px;
+}
+
+.bubble {
+  display: grid;
+  gap: 4px;
+  max-width: 88%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.bubble-user {
+  justify-self: end;
+  border-color: var(--accent);
+  background: var(--accent-wash);
+}
+
+.bubble-who {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.bubble-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.bubble.is-pending .bubble-text {
+  color: var(--text-2);
+}
+
+.chat-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.chat-form textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--field);
+  font-size: 16px;
+  resize: vertical;
+}
+
+.chat-form textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
 /* ---------- Tab bar ---------- */
 
 .tabbar {
@@ -1111,7 +1185,7 @@ th[aria-sort='descending'] {
   bottom: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   max-width: 640px;
   margin: 0 auto;
   padding: 6px 8px calc(env(safe-area-inset-bottom) + 6px);

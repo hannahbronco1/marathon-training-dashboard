@@ -63,12 +63,15 @@ test('config lists missing secrets by name only', async () => {
   assert.deepEqual(await off.json(), {
     configured: false,
     missing: ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'APP_PASSCODE'],
+    chat: false,
   });
   const blank = await call('/api/config', { auth: null, env: { ...fullEnv, SUPABASE_SERVICE_ROLE_KEY: '  ' } });
-  assert.deepEqual(await blank.json(), { configured: false, missing: ['SUPABASE_SERVICE_ROLE_KEY'] });
+  assert.deepEqual(await blank.json(), { configured: false, missing: ['SUPABASE_SERVICE_ROLE_KEY'], chat: false });
   const on = await call('/api/config', { auth: null });
   const body = await on.text();
-  assert.deepEqual(JSON.parse(body), { configured: true, missing: [] });
+  assert.deepEqual(JSON.parse(body), { configured: true, missing: [], chat: false });
+  const withChat = await call('/api/config', { auth: null, env: { ...fullEnv, NVIDIA_API_KEY: 'nvapi-x' } });
+  assert.equal((await withChat.json()).chat, true);
   assert.doesNotMatch(body, /service-key|letmein/);
 });
 

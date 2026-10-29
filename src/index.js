@@ -80,7 +80,7 @@ async function handleApi(request, env, url) {
   // screen can show what's left to add.
   if (pathname === '/api/config' && method === 'GET') {
     const missing = REQUIRED_SECRETS.filter((name) => !String(env[name] ?? '').trim());
-    return json({ configured: missing.length === 0, missing });
+    return json({ configured: missing.length === 0, missing, chat: isNvidiaConfigured(env) });
   }
 
   if (pathname === '/api/runs' || pathname.startsWith('/api/runs/')) {
