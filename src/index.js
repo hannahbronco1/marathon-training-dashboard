@@ -4,6 +4,7 @@
 import { validateRun, validateTarget } from '../public/js/run-schema.js';
 import {
   createRun,
+  createRuns,
   deleteRun,
   deleteTarget,
   isSupabaseConfigured,
@@ -18,6 +19,8 @@ import { chat, isNvidiaConfigured, parseChatRequest, TimeoutError } from './nvid
 import { runLogSystemMessage } from './run-context.js';
 
 const MAX_BODY_BYTES = 64 * 1024;
+const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
+const MAX_IMPORT_RUNS = 2000;
 const REQUIRED_SECRETS = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'APP_PASSCODE'];
 
 class HttpError extends Error {
@@ -35,9 +38,9 @@ function json(body, status = 200) {
   });
 }
 
-async function readJson(request) {
+async function readJson(request, maxBytes = MAX_BODY_BYTES) {
   const text = await request.text();
-  if (text.length > MAX_BODY_BYTES) throw new HttpError(413, 'Request is too large.');
+  if (text.length > maxBytes) throw new HttpError(413, 'Request is too large.');
   try {
     return JSON.parse(text);
   } catch {
@@ -108,6 +111,30 @@ async function handleApi(request, env, url) {
       const run = await createRun(env, validateOrThrow(await readJson(request)));
       return json({ run }, 201);
     }
+  }
+
+  // Bulk import from a CSV or JSON file. Every run is checked again here,
+  // and runs already in the table (same date and Day #) are skipped, so
+  // importing the same file twice adds nothing.
+  if (pathname === '/api/runs/import' && method === 'POST') {
+    const body = await readJson(request, MAX_IMPORT_BYTES);
+    if (!Array.isArray(body.runs) || body.runs.length > MAX_IMPORT_RUNS) {
+      throw new HttpError(400, `Send up to ${MAX_IMPORT_RUNS} runs as { "runs": [...] }.`);
+    }
+    const checked = body.runs.map((input, i) => {
+      const { value, errors } = validateRun(input);
+      if (errors) throw new HttpError(422, `Run ${i + 1}: ${Object.values(errors).join(' ')}`, errors);
+      return value;
+    });
+    const seen = new Set((await listRuns(env)).map((r) => `${r.run_date}#${r.plan_day}`));
+    const fresh = checked.filter((r) => {
+      const key = `${r.run_date}#${r.plan_day}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    const saved = await createRuns(env, fresh);
+    return json({ imported: saved.length, skipped: checked.length - fresh.length }, 201);
   }
 
   const runMatch = pathname.match(/^\/api\/runs\/([^/]+)$/);

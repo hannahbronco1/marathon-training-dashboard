@@ -63,6 +63,8 @@ export const runsApi = {
   create: async (run) => (await api('/api/runs', { method: 'POST', body: run })).run,
   update: async (id, run) => (await api(`/api/runs/${encodeURIComponent(id)}`, { method: 'PATCH', body: run })).run,
   remove: (id) => api(`/api/runs/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  // Saves many runs at once; returns { imported, skipped }.
+  importMany: (runs) => api('/api/runs/import', { method: 'POST', body: { runs } }),
 };
 
 // Weekly mileage targets, one per plan week.

@@ -153,6 +153,23 @@
           </table>
         </div>
         <p id="runs-empty" class="empty-text" hidden></p>
+
+        <!-- Backup and import -->
+        <section class="card data-card" aria-labelledby="data-title">
+          <h2 id="data-title">Your data</h2>
+          <p class="sub">Download a copy of your log, or bring runs in from a file.</p>
+          <div class="data-actions">
+            <button type="button" class="btn" id="export-csv">Download CSV</button>
+            <button type="button" class="btn" id="export-json">Download JSON backup</button>
+            <button type="button" class="btn primary" id="import-open">Import from file</button>
+          </div>
+          <p class="sub data-note">
+            CSV opens in Excel, Numbers or Google Sheets. The JSON backup also includes your weekly targets.
+            Filling in runs in a spreadsheet? Start from the
+            <button type="button" class="link-btn" id="export-template">blank CSV template</button>.
+          </p>
+          <input type="file" id="import-file" accept=".csv,.json,text/csv,application/json" hidden />
+        </section>
       </section>
 
       <!-- Weekly summaries -->
@@ -382,6 +399,30 @@
         <footer class="sheet-footer">
           <button type="button" id="target-remove" class="btn danger" hidden>Remove</button>
           <button type="submit" class="btn primary">Save target</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <!-- Import preview -->
+    <dialog id="import-dialog" class="sheet small" aria-labelledby="import-title">
+      <form id="import-form">
+        <header class="sheet-header">
+          <h2 id="import-title">Import runs</h2>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
+        <p class="import-file-name" id="import-file-name"></p>
+        <dl class="import-summary" id="import-summary"></dl>
+        <div id="import-problems" class="import-problems" hidden>
+          <h3>Can’t import these</h3>
+          <ul></ul>
+        </div>
+        <p class="sub" id="import-note"></p>
+        <p class="field-error" data-error-for="form" role="alert"></p>
+        <footer class="sheet-footer">
+          <button type="button" class="btn" data-close>Cancel</button>
+          <button type="submit" class="btn primary" id="import-confirm">Import</button>
         </footer>
       </form>
     </dialog>

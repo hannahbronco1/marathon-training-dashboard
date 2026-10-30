@@ -69,6 +69,11 @@ export async function createRun(env, run) {
   return rows[0];
 }
 
+// Inserts many runs in one request; returns the saved rows.
+export function createRuns(env, runs) {
+  return runs.length ? rest(env, `runs?select=${COLUMNS}`, { method: 'POST', body: JSON.stringify(runs) }) : [];
+}
+
 // Returns the updated row, or null when no run has that id.
 export async function updateRun(env, id, run) {
   const rows = await rest(env, `runs?id=eq.${id}&select=${COLUMNS}`, {

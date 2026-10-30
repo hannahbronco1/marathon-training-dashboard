@@ -179,9 +179,32 @@ test('Supabase errors become a 502 without leaking details', async () => {
   assert.doesNotMatch(await res.text(), /secret internals/);
 });
 
-test('removed routes are gone', async () => {
+test('the old coach route is gone', async () => {
   assert.equal((await call('/api/coach', { method: 'POST', body: {} })).status, 404);
-  assert.equal((await call('/api/runs/import', { method: 'POST', body: {} })).status, 404);
+});
+
+test('bulk import skips runs already in the table and saves the rest at once', async () => {
+  respond = (url, init) => {
+    if (init.method === 'POST') return Response.json(JSON.parse(init.body).map((r) => ({ id: ID, ...r })), { status: 201 });
+    return Response.json([{ ...run, id: ID }]); // the existing run
+  };
+  const second = { ...run, run_date: '2026-10-29', plan_day: 2, notes: '  as typed  ' };
+  const res = await call('/api/runs/import', { method: 'POST', body: { runs: [run, second, second] } });
+  assert.equal(res.status, 201);
+  assert.deepEqual(await res.json(), { imported: 1, skipped: 2 });
+  const insert = calls.find((c) => c.init.method === 'POST');
+  const sent = JSON.parse(insert.init.body);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].notes, '  as typed  ');
+});
+
+test('bulk import rejects the whole file if any run is invalid', async () => {
+  const res = await call('/api/runs/import', { method: 'POST', body: { runs: [run, { ...run, miles: 0 }] } });
+  assert.equal(res.status, 422);
+  assert.match((await res.json()).error, /^Run 2: Miles must be more than 0\./);
+  assert.equal(calls.length, 0);
+  assert.equal((await call('/api/runs/import', { method: 'POST', body: { nope: 1 } })).status, 400);
+  assert.equal((await call('/api/runs/import', { method: 'POST', body: { runs: [] }, auth: null })).status, 401);
 });
 
 test('lists weekly targets', async () => {

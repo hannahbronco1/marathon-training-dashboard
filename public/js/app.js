@@ -2,6 +2,7 @@ import { ApiError, fetchConfig, passcode, runsApi, sendChat, targetsApi } from '
 import { renderChart } from './charts.js';
 import { LOCATIONS, RUN_TYPES, locationLabel, runTypeLabel, validateRun, validateTarget } from './run-schema.js';
 import { PLAN } from './plan.js';
+import * as Backup from './backup.js';
 import * as S from './stats.js';
 
 const VIEWS = ['dashboard', 'timeline', 'runs', 'weekly', 'chat'];
@@ -916,6 +917,107 @@ async function deleteRun() {
   }
 }
 
+// ---------- Backup & import ----------
+
+const MAX_IMPORT_FILE_BYTES = 2 * 1024 * 1024;
+
+function downloadFile(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const link = h('a', { href: url, download: name, hidden: true });
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportCSV() {
+  downloadFile(Backup.exportFileName('csv'), Backup.runsToCSV(state.runs), 'text/csv;charset=utf-8');
+  toast(`Downloaded ${plural(state.runs.length, 'run')}`);
+}
+
+function exportJSON() {
+  downloadFile(Backup.exportFileName('json'), Backup.backupJSON(state.runs, state.targets), 'application/json');
+  toast('Backup downloaded');
+}
+
+// What the chosen file would add, waiting for "Import" to be tapped.
+let pendingImport = null;
+
+async function readChosenFile(event) {
+  const file = event.target.files[0];
+  event.target.value = ''; // so choosing the same file again still works
+  if (!file) return;
+  if (file.size > MAX_IMPORT_FILE_BYTES) {
+    toast('That file is too big to import (2 MB max).');
+    return;
+  }
+  pendingImport = Backup.readImportFile(file.name, await file.text(), state.runs);
+  showImportPreview(file.name, pendingImport);
+}
+
+function showImportPreview(name, plan) {
+  const form = $('#import-form');
+  $('[data-error-for="form"]', form).textContent = '';
+  $('#import-file-name').textContent = name;
+  const rows = [
+    ['New runs', plan.toAdd.length],
+    ['Already in your log (skipped)', plan.duplicates],
+  ];
+  if (plan.targets.length) rows.push(['Weekly targets', plan.targets.length]);
+  if (plan.problems.length) rows.push(['Can’t import', plan.problems.length]);
+  $('#import-summary').replaceChildren(...rows.map(([label, n]) => h('div', {}, h('dt', {}, label), h('dd', {}, n))));
+
+  const problems = $('#import-problems');
+  problems.hidden = plan.problems.length === 0;
+  const shown = plan.problems.slice(0, 8);
+  const items = shown.map((p) => h('li', {}, p));
+  if (plan.problems.length > shown.length) items.push(h('li', {}, `…and ${plan.problems.length - shown.length} more`));
+  $('ul', problems).replaceChildren(...items);
+
+  const notes = [];
+  if (plan.targets.length) notes.push('Targets in this file replace any you’ve set for the same weeks.');
+  if (plan.toAdd.length) notes.push('Food and notes are imported exactly as written.');
+  $('#import-note').textContent = notes.join(' ');
+
+  const nothing = !plan.toAdd.length && !plan.targets.length;
+  const confirm = $('#import-confirm');
+  confirm.disabled = nothing;
+  confirm.textContent = nothing
+    ? 'Nothing to import'
+    : plan.toAdd.length
+      ? `Import ${plural(plan.toAdd.length, 'run')}`
+      : `Import ${plural(plan.targets.length, 'target')}`;
+  $('#import-dialog').showModal();
+}
+
+async function confirmImport(event) {
+  event.preventDefault();
+  if (!pendingImport) return;
+  const form = $('#import-form');
+  const confirm = $('#import-confirm');
+  confirm.disabled = true;
+  confirm.textContent = 'Importing…';
+  try {
+    const { imported, skipped } = await runsApi.importMany(pendingImport.toAdd);
+    for (const t of pendingImport.targets) await targetsApi.set(t.plan_week, t.target_miles);
+    const already = skipped + pendingImport.duplicates;
+    const targetCount = pendingImport.targets.length;
+    const parts = [];
+    if (imported || !targetCount) parts.push(`Imported ${plural(imported, 'run')}`);
+    if (targetCount) parts.push(`${parts.length ? '' : 'Imported '}${plural(targetCount, 'target')}`);
+    if (already) parts.push(`${already} already in your log`);
+    pendingImport = null;
+    await loadRuns(); // refresh everything before closing, so the new numbers are there
+    $('#import-dialog').close();
+    toast(parts.join(' · '));
+  } catch (err) {
+    confirm.disabled = false;
+    confirm.textContent = 'Try again';
+    if (isAuthError(err)) openPasscodeDialog('Enter your passcode, then import again.');
+    else $('[data-error-for="form"]', form).textContent = `Couldn’t import: ${err.message}`;
+  }
+}
+
 // ---------- Target dialog ----------
 
 const targetForm = () => $('#target-form');
@@ -1147,6 +1249,13 @@ function wireEvents() {
     renderChat();
     $('#chat-input').focus();
   });
+
+  $('#export-csv').addEventListener('click', exportCSV);
+  $('#export-json').addEventListener('click', exportJSON);
+  $('#export-template').addEventListener('click', () => downloadFile('marathon-runs-template.csv', Backup.csvTemplate(), 'text/csv;charset=utf-8'));
+  $('#import-open').addEventListener('click', () => $('#import-file').click());
+  $('#import-file').addEventListener('change', readChosenFile);
+  $('#import-form').addEventListener('submit', confirmImport);
 
   targetForm().addEventListener('submit', saveTarget);
   $('#target-week').addEventListener('change', () => {

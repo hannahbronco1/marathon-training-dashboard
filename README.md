@@ -10,6 +10,13 @@ Date, Week # and Day # (filled in from the date; you can change them), miles, du
 
 Plan weeks run Monday to Sunday. Week 1 is Oct 19–25, 2026, and Week 20 (Mar 1–7, 2027) ends on race day. To change the plan dates, edit `public/js/plan.js`.
 
+## Backing up and importing
+
+On the **Log** tab, **Your data** lets you:
+- **Download CSV**: every run, ready for Excel, Numbers or Google Sheets.
+- **Download JSON backup**: every run plus your weekly targets. Keep one somewhere safe now and then.
+- **Import from file**: a CSV or JSON file. You'll see a preview first, runs already in your log (same date and Day #) are skipped, and nothing is saved until you tap Import. Use the **blank CSV template** to fill in runs in a spreadsheet; blank Week # and Day # are filled in from the date.
+
 ## How it fits together
 
 ```
@@ -21,6 +28,7 @@ public/              The website (no build step)
   js/stats.js        Plan weeks, pace, totals (pure functions, easy to test)
   js/plan.js         Plan start date and race date
   js/charts.js       Small SVG charts
+  js/backup.js       CSV / JSON export and import
   js/store.js        Talks to the server's /api routes
 src/                 The Cloudflare Worker (server)
   index.js           /api routes and the passcode check
@@ -98,6 +106,7 @@ All `/api/runs`, `/api/targets` and `/api/chat` routes need `Authorization: Bear
 | GET | `/api/config` | | `{ configured }` |
 | GET | `/api/runs` | | `{ runs }` |
 | POST | `/api/runs` | run | `{ run }` |
+| POST | `/api/runs/import` | `{ runs: [run] }` | `{ imported, skipped }` |
 | PATCH | `/api/runs/:id` | run | `{ run }` |
 | DELETE | `/api/runs/:id` | | 204 |
 | GET | `/api/targets` | | `{ targets: [{ plan_week, target_miles }] }` |

@@ -59,11 +59,18 @@ http
       return send(res, 200, sorted);
     }
     if (req.method === 'POST') {
-      const input = JSON.parse(body);
+      // One run or an array of runs (bulk import).
+      const parsed = JSON.parse(body);
       // Supabase returns numeric columns as strings; mimic that.
-      const row = { id: randomUUID(), ...input, miles: String(input.miles), created_at: now, updated_at: now };
-      rows.push(row);
-      return send(res, 201, [row]);
+      const added = (Array.isArray(parsed) ? parsed : [parsed]).map((input) => ({
+        id: randomUUID(),
+        ...input,
+        miles: String(input.miles),
+        created_at: now,
+        updated_at: now,
+      }));
+      rows.push(...added);
+      return send(res, 201, added);
     }
 
     const index = rows.findIndex((r) => r.id === id);
