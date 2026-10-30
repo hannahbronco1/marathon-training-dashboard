@@ -51,9 +51,11 @@ export function fetchConfig() {
   return api('/api/config');
 }
 
-// Sends the conversation so far; returns { reply, finish_reason, model, usage }.
-export function sendChat(messages) {
-  return api('/api/chat', { method: 'POST', body: { messages } });
+// Sends the conversation so far; returns { reply, finish_reason, model,
+// usage, runs_used? }. With includeRuns the server adds your run log (never
+// your food or notes) from Supabase.
+export function sendChat(messages, { includeRuns = false } = {}) {
+  return api('/api/chat', { method: 'POST', body: { messages, include_runs: includeRuns } });
 }
 
 export const runsApi = {

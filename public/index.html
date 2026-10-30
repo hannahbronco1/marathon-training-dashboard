@@ -205,7 +205,11 @@
           <h2 class="view-title" id="chat-title">Chat</h2>
           <button type="button" id="chat-clear" class="link-btn" hidden>New chat</button>
         </div>
-        <p class="sub">Test chat with NVIDIA Nemotron 3.5 Lightning. It can’t see your runs, food or notes.</p>
+        <label class="toggle chat-toggle">
+          <input type="checkbox" id="chat-include-runs" aria-describedby="chat-privacy" />
+          <span>Include my run log</span>
+        </label>
+        <p class="sub" id="chat-privacy"></p>
         <div id="chat-off" class="card chat-off" hidden>
           <p>Chat is off. Add your NVIDIA key in Cloudflare as a secret named <code>NVIDIA_API_KEY</code>, then reload.</p>
           <p class="chat-off-detail" id="chat-off-detail"></p>

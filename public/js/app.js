@@ -21,7 +21,10 @@ function loadPrefs() {
 
 function savePrefs() {
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ sort: state.sort, showJournal: state.showJournal }));
+    localStorage.setItem(
+      PREFS_KEY,
+      JSON.stringify({ sort: state.sort, showJournal: state.showJournal, chatIncludeRuns: chatState.includeRuns }),
+    );
   } catch {
     // Preferences are a convenience; ignore storage failures.
   }
@@ -1027,20 +1030,30 @@ function showChatStatus(config) {
 }
 
 // The conversation lives only in this page; reloading starts fresh.
-const chatState = { messages: [], sending: false };
+// Each assistant message may carry `runsUsed`, how many runs it was given.
+const chatState = { messages: [], sending: false, includeRuns: prefs.chatIncludeRuns !== false };
 
-function chatBubble(role, text, extraClass = '') {
+function chatBubble(role, text, extraClass = '', runsUsed) {
   return h(
     'li',
     { class: `bubble bubble-${role} ${extraClass}`.trim() },
     h('span', { class: 'bubble-who' }, role === 'user' ? 'You' : 'Nemotron'),
     h('p', { class: 'bubble-text' }, text),
+    runsUsed !== undefined && h('span', { class: 'bubble-meta' }, `Based on your ${plural(runsUsed, 'run')}`),
   );
 }
 
+function renderChatPrivacy() {
+  $('#chat-include-runs').checked = chatState.includeRuns;
+  $('#chat-privacy').textContent = chatState.includeRuns
+    ? 'Chat with NVIDIA Nemotron 3.5 Lightning about your runs. Each message sends your run log (dates, miles, times, paces, weather, run types) to NVIDIA. Your food and notes are never sent. Check anything important against your Log.'
+    : 'Chat with NVIDIA Nemotron 3.5 Lightning. It can’t see your runs, food or notes.';
+}
+
 function renderChat() {
+  renderChatPrivacy();
   const log = $('#chat-log');
-  log.replaceChildren(...chatState.messages.map((m) => chatBubble(m.role, m.content)));
+  log.replaceChildren(...chatState.messages.map((m) => chatBubble(m.role, m.content, '', m.runsUsed)));
   if (chatState.sending) log.append(chatBubble('assistant', 'Thinking…', 'is-pending'));
   $('#chat-clear').hidden = chatState.messages.length === 0 || chatState.sending;
   $('#chat-form button').disabled = chatState.sending;
@@ -1059,9 +1072,11 @@ async function sendChatMessage(event) {
   input.value = '';
   renderChat();
   try {
-    const { reply, finish_reason } = await sendChat(chatState.messages.slice(-MAX_CHAT_MESSAGES));
+    // Only role and content go to the server; runsUsed stays on this page.
+    const history = chatState.messages.slice(-MAX_CHAT_MESSAGES).map(({ role, content }) => ({ role, content }));
+    const { reply, finish_reason, runs_used } = await sendChat(history, { includeRuns: chatState.includeRuns });
     const content = reply || (finish_reason === 'length' ? '(The reply ran out of room before finishing.)' : '(No reply.)');
-    chatState.messages.push({ role: 'assistant', content });
+    chatState.messages.push({ role: 'assistant', content, runsUsed: runs_used });
   } catch (err) {
     // Put the message back so it can be sent again.
     chatState.messages.pop();
@@ -1117,6 +1132,11 @@ function wireEvents() {
   });
 
   $('#chat-form').addEventListener('submit', sendChatMessage);
+  $('#chat-include-runs').addEventListener('change', (event) => {
+    chatState.includeRuns = event.target.checked;
+    savePrefs();
+    renderChatPrivacy();
+  });
   // Ctrl/Cmd + Enter sends; Enter alone adds a new line.
   $('#chat-input').addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) $('#chat-form').requestSubmit();
@@ -1161,6 +1181,7 @@ async function init() {
   $('#brand').textContent = `${PLAN.shortName} · ${PLAN.raceDate.slice(0, 4)}`;
   buildRunForm();
   wireEvents();
+  renderChatPrivacy();
   let config;
   try {
     config = await fetchConfig();

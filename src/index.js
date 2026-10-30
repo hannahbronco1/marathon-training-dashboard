@@ -15,6 +15,7 @@ import {
   UpstreamError,
 } from './supabase.js';
 import { chat, isNvidiaConfigured, parseChatRequest, TimeoutError } from './nvidia.js';
+import { runLogSystemMessage } from './run-context.js';
 
 const MAX_BODY_BYTES = 64 * 1024;
 const REQUIRED_SECRETS = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'APP_PASSCODE'];
@@ -150,7 +151,17 @@ async function handleApi(request, env, url) {
     await requirePasscode(request, env);
     const { value, error } = parseChatRequest(await readJson(request));
     if (error) throw new HttpError(400, error);
-    return json(await chat(env, value));
+    if (!value.includeRuns) return json(await chat(env, value));
+
+    // "Include my run log": read the runs straight from Supabase (never from
+    // the browser) and put the run-log instructions first. Any system
+    // message from the browser is dropped so it can't replace them.
+    if (!isSupabaseConfigured(env)) throw new HttpError(503, 'Supabase is not set up yet.');
+    const [runs, targetRows] = await Promise.all([listRuns(env), listTargets(env).catch(() => [])]);
+    const targets = new Map(targetRows.map((t) => [t.plan_week, Number(t.target_miles)]));
+    const messages = [runLogSystemMessage(runs, targets), ...value.messages.filter((m) => m.role !== 'system')];
+    const result = await chat(env, { messages, maxTokens: value.maxTokens });
+    return json({ ...result, runs_used: runs.length });
   }
 
   throw new HttpError(404, 'Not found.');

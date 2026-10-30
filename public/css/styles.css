@@ -1381,6 +1381,16 @@ th[aria-sort='descending'] {
   overflow-wrap: anywhere;
 }
 
+.bubble-meta {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-2);
+}
+
+.chat-toggle {
+  margin-top: -4px;
+}
+
 .bubble.is-pending .bubble-text {
   color: var(--text-2);
 }

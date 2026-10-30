@@ -44,7 +44,13 @@ export function parseChatRequest(body) {
     }
   }
 
-  return { value: { messages: messages.map(({ role, content }) => ({ role, content })), maxTokens } };
+  return {
+    value: {
+      messages: messages.map(({ role, content }) => ({ role, content })),
+      maxTokens,
+      includeRuns: src.include_runs === true,
+    },
+  };
 }
 
 // Reasoning models can put their thinking inside <think>…</think>; keep only

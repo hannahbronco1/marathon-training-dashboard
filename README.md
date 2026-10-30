@@ -2,7 +2,7 @@
 
 A phone-friendly dashboard for training for the ASICS Los Angeles Marathon (March 7, 2027). Log each run, then follow your progress in a sortable run log, a timeline, weekly summaries and charts.
 
-It runs on **Cloudflare Workers** (static files plus a small API) and saves runs in **Supabase**. An optional **Chat** tab (and `/api/chat` route) sends chat messages to an NVIDIA-hosted model; it only sees what you type in it.
+It runs on **Cloudflare Workers** (static files plus a small API) and saves runs in **Supabase**. An optional **Chat** tab (and `/api/chat` route) sends chat messages to an NVIDIA-hosted model. With **Include my run log** on, it can answer factual questions about your runs: the server adds your run log from Supabase (dates, miles, times, paces, weather, run types and weekly totals, never your food or notes) to each message, so that data goes to NVIDIA.
 
 ## What's in each run
 
@@ -103,7 +103,7 @@ All `/api/runs`, `/api/targets` and `/api/chat` routes need `Authorization: Bear
 | GET | `/api/targets` | | `{ targets: [{ plan_week, target_miles }] }` |
 | PUT | `/api/targets/:week` | `{ target_miles }` | `{ target }` |
 | DELETE | `/api/targets/:week` | | 204 |
-| POST | `/api/chat` | `{ prompt }` or `{ messages, max_tokens? }` | `{ reply, finish_reason, model, usage }` |
+| POST | `/api/chat` | `{ prompt }` or `{ messages, max_tokens?, include_runs? }` | `{ reply, finish_reason, model, usage, runs_used? }` |
 
 `/api/chat` uses the model `nvidia/nemotron-3.5-lightning-30b-a3b` at `https://integrate.api.nvidia.com/v1`. `messages` is a list of `{ role, content }` with roles `system`, `user` or `assistant` (up to 40). `max_tokens` defaults to 1024 (max 4096). Any `<think>…</think>` reasoning is stripped from `reply`.
 
